@@ -1,20 +1,37 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import SmartStepper from '../components/SmartStepper'
 import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
+import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
+
+interface ExerciseTrackerProps {
+  workoutEx: WorkoutExercise
+  defaultWeight: number
+  defaultReps: number
+  swapCandidates: Exercise[]
+  onSwapExercise: (targetExercise: Exercise) => void
+}
 
 // --- SUB-COMPONENTE: Maneja los controles de un solo ejercicio ---
-const ExerciseTracker = ({ workoutEx }: { workoutEx: any }) => {
+const ExerciseTracker = ({
+  workoutEx,
+  defaultWeight,
+  defaultReps,
+  swapCandidates,
+  onSwapExercise,
+}: ExerciseTrackerProps) => {
   const { addSet, completeSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
   
-  const [weight, setWeight] = useState(60)
-  const [reps, setReps] = useState(8)
+  const [weight, setWeight] = useState(defaultWeight)
+  const [reps, setReps] = useState(defaultReps)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [showSwapList, setShowSwapList] = useState(false)
 
   const handleCheckIn = () => {
     addSet(exercise.id, weight, reps) // Guardamos la serie en Zustand
@@ -33,7 +50,7 @@ const ExerciseTracker = ({ workoutEx }: { workoutEx: any }) => {
       {/* Historial de series de este ejercicio */}
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {sets.map((set: any, idx: number) => (
+          {sets.map((set, idx: number) => (
             <div key={idx} className="flex justify-between bg-zinc-950 px-4 py-2 rounded-lg text-sm">
               <span className="text-zinc-400">Serie {idx + 1}</span>
               <span className="font-bold text-zinc-100">{set.weight}kg × {set.reps} reps</span>
@@ -53,63 +70,121 @@ const ExerciseTracker = ({ workoutEx }: { workoutEx: any }) => {
       <div className="mt-4">
         <CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} />
       </div>
+
+      <div className="mt-4 border-t border-zinc-800 pt-4">
+        <button
+          onClick={() => setShowSwapList((prev) => !prev)}
+          className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700"
+        >
+          Quick Swap
+        </button>
+
+        {showSwapList && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {swapCandidates.length === 0 ? (
+              <span className="text-xs text-zinc-500">No hay alternativas disponibles.</span>
+            ) : (
+              swapCandidates.slice(0, 5).map((candidate) => (
+                <button
+                  key={candidate.id}
+                  onClick={() => {
+                    onSwapExercise(candidate)
+                    setShowSwapList(false)
+                  }}
+                  className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg"
+                >
+                  {candidate.name}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function getLatestDefaultsByExercise(sessions: WorkoutSessionWithSets[]) {
+  const defaults = new Map<string, { weight: number; reps: number }>()
+
+  for (const session of sessions) {
+    const sessionSets = session.workout_sets ?? []
+    for (const set of sessionSets) {
+      if (!defaults.has(set.exercise_id)) {
+        defaults.set(set.exercise_id, {
+          weight: set.weight,
+          reps: set.reps,
+        })
+      }
+    }
+  }
+
+  return defaults
+}
+
+function getExplicitAlternatives(exercise: Exercise, catalog: Exercise[]) {
+  const byEmbeddedAlternatives = exercise.alternatives ?? []
+  const byIds = new Set(exercise.alternative_exercise_ids ?? [])
+
+  const byCatalogIds = catalog.filter((item) => byIds.has(item.id))
+  return [...byEmbeddedAlternatives, ...byCatalogIds].filter((candidate) => candidate.id !== exercise.id)
+}
+
+function getSwapCandidates(exercise: Exercise, catalog: Exercise[]) {
+  const explicit = getExplicitAlternatives(exercise, catalog)
+  if (explicit.length > 0) return explicit
+
+  return catalog.filter(
+    (candidate) =>
+      candidate.id !== exercise.id &&
+      candidate.muscle_group &&
+      candidate.muscle_group === exercise.muscle_group,
   )
 }
 
 // --- PANTALLA PRINCIPAL ---
 export default function Workout() {
-  const { activeSession, workoutExercises, clearSession } = useWorkoutStore()
+  const { activeSession, workoutExercises, replaceExercise, clearSession } = useWorkoutStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  // Guardado Masivo en Supabase
-  const handleFinishWorkout = async () => {
-    if (!activeSession) return
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("No hay usuario autenticado")
+  const { data: recentSessions = [] } = useQuery({
+    queryKey: ['workout-history', 'smart-defaults'],
+    queryFn: () => fetchWorkoutHistory(20),
+  })
 
-      // 1. Creamos la sesión principal
-      const { data: newSession, error: sessionError } = await supabase
-        .from('workout_sessions')
-        .insert({ user_id: user.id, start_time: activeSession.start_time })
-        .select().single()
+  const { data: allExercises = [] } = useQuery({
+    queryKey: ['exercises', 'quick-swap'],
+    queryFn: fetchExercises,
+  })
 
-      if (sessionError) throw sessionError
+  const defaultsByExercise = useMemo(
+    () => getLatestDefaultsByExercise(recentSessions),
+    [recentSessions],
+  )
 
-      // 2. Empaquetamos TODAS las series de TODOS los ejercicios
-      const allSetsToInsert: any[] = []
-      
-      workoutExercises.forEach((workoutEx) => {
-        workoutEx.sets.forEach((set) => {
-          allSetsToInsert.push({
-            session_id: newSession.id,
-            exercise_id: workoutEx.exercise.id,
-            weight: set.weight,
-            reps: set.reps,
-            is_completed: true
-          })
-        })
+  const finishWorkoutMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeSession) return
+      await finishWorkoutSession({
+        startTime: activeSession.start_time,
+        workoutExercises,
       })
-
-      // 3. Guardamos todo de golpe si hay series
-      if (allSetsToInsert.length > 0) {
-        const { error: setsError } = await supabase
-          .from('workout_sets')
-          .insert(allSetsToInsert)
-
-        if (setsError) throw setsError
-      }
-
-      // 4. Limpiamos Zustand y volvemos al Feed
+    },
+    onSuccess: async () => {
       clearSession()
+      await queryClient.invalidateQueries({ queryKey: ['workout-history'] })
       navigate('/')
-      
-    } catch (error: any) {
-      console.error("Error al guardar:", error)
-      alert(`Error al guardar: ${error.message || 'Fallo desconocido'}`)
-    }
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Fallo desconocido'
+      alert(`Error al guardar: ${message}`)
+    },
+  })
+
+  const handleFinishWorkout = () => {
+    if (!activeSession) return
+    finishWorkoutMutation.mutate()
   }
 
   // Si llegamos aquí y no hay sesión, mostramos un aviso amigable
@@ -129,7 +204,14 @@ export default function Workout() {
         <div className="text-center text-zinc-500 my-10">Agrega ejercicios desde el catálogo.</div>
       ) : (
         workoutExercises.map((workoutEx, index) => (
-          <ExerciseTracker key={index} workoutEx={workoutEx} />
+          <ExerciseTracker
+            key={`${workoutEx.exercise.id}-${index}`}
+            workoutEx={workoutEx}
+            defaultWeight={defaultsByExercise.get(workoutEx.exercise.id)?.weight ?? 60}
+            defaultReps={defaultsByExercise.get(workoutEx.exercise.id)?.reps ?? 8}
+            swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)}
+            onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)}
+          />
         ))
       )}
 
@@ -144,9 +226,10 @@ export default function Workout() {
 
         <button 
           onClick={handleFinishWorkout}
+          disabled={finishWorkoutMutation.isPending}
           className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform"
         >
-          Terminar Entrenamiento
+          {finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}
         </button>
       </div>
 
