@@ -18,8 +18,9 @@ export default function RestTimer() {
   }, [isResting])
 
   // La lógica de la cuenta regresiva
+  // La lógica de la cuenta regresiva
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    let interval: ReturnType<typeof setInterval>
     
     if (isVisible && timeLeft > 0) {
       interval = setInterval(() => {
