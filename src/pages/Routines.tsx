@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2, Edit, Copy } from 'lucide-react'
+import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2, Edit, Copy, Folder } from 'lucide-react'
 import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
@@ -29,14 +29,22 @@ export default function Routines() {
 
   const exerciseMap = useMemo(() => buildExerciseMap(exercises), [exercises])
 
+  // ---> NUEVO: Lógica que agrupa automáticamente las rutinas por su carpeta <---
+  const groupedRoutines = useMemo(() => {
+    return routines.reduce((acc, routine) => {
+      const folderName = routine.folder || 'Mis Rutinas' // Si no tiene carpeta, va a "Mis Rutinas"
+      if (!acc[folderName]) acc[folderName] = []
+      acc[folderName].push(routine)
+      return acc
+    }, {} as Record<string, RoutineWithDays[]>)
+  }, [routines])
+
   const deleteMutation = useMutation({
     mutationFn: deleteRoutine,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
     },
-    onError: (error: any) => {
-      alert(`Error al eliminar: ${error.message}`)
-    }
+    onError: (error: any) => alert(`Error al eliminar: ${error.message}`)
   })
 
   const startRoutineDay = (routine: RoutineWithDays, day: RoutineDayWithExercises) => {
@@ -55,12 +63,7 @@ export default function Routines() {
     for (const routineExercise of day.routine_exercises) {
       const baseExercise = exerciseMap.get(routineExercise.exercise_id)
       if (!baseExercise) continue
-
-      const resolvedExerciseConfig = resolveExerciseConfig(
-        resolvedSessionConfig,
-        day.config,
-        routineExercise.config ?? null,
-      )
+      const resolvedExerciseConfig = resolveExerciseConfig(resolvedSessionConfig, day.config, routineExercise.config ?? null)
 
       addExercise(baseExercise, {
         routine_exercise_id: routineExercise.id,
@@ -72,44 +75,30 @@ export default function Routines() {
         config: resolvedExerciseConfig,
       })
     }
-
     navigate('/workout')
   }
 
   const handleShare = async (e: React.MouseEvent, routine: RoutineWithDays) => {
     e.stopPropagation()
     const shareUrl = `${window.location.origin}/routines/shared/${routine.id}`
-    const shareData = {
-      title: `Rutina: ${routine.name}`,
-      text: `¡Mira esta rutina en Gym PWA! 💪`,
-      url: shareUrl
-    }
-
+    const shareData = { title: `Rutina: ${routine.name}`, text: `¡Mira esta rutina en Gym PWA! 💪`, url: shareUrl }
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData)
-      } catch (err) {
-        console.error("Error al compartir", err)
-      }
+      try { await navigator.share(shareData) } catch (err) { console.error(err) }
     } else {
       await navigator.clipboard.writeText(shareUrl)
       alert('¡Enlace copiado al portapapeles!')
     }
   }
 
-  // ---> NUEVO: Exportar a Texto Plano <---
   const handleExportText = async (e: React.MouseEvent, routine: RoutineWithDays) => {
     e.stopPropagation()
-    
     let text = `🏋️ Rutina: ${routine.name}\n`
     if (routine.notes) text += `📝 Notas: ${routine.notes}\n`
     text += `\n`
-
     const days = routine.routine_days || []
     days.forEach((day, index) => {
       text += `📅 ${day.name || `Día ${index + 1}`}\n`
       const routineExercises = day.routine_exercises || []
-      
       routineExercises.forEach((ex) => {
         const baseEx = exerciseMap.get(ex.exercise_id)
         const exName = baseEx ? baseEx.name : 'Ejercicio Desconocido'
@@ -117,18 +106,15 @@ export default function Routines() {
       })
       text += `\n`
     })
-
     try {
       await navigator.clipboard.writeText(text.trim())
       alert('¡Rutina copiada en formato texto!')
-    } catch (err) {
-      alert('Error al copiar el texto.')
-    }
+    } catch (err) { alert('Error al copiar el texto.') }
   }
 
   const handleDelete = (e: React.MouseEvent, routineId: string) => {
     e.stopPropagation()
-    if (window.confirm('¿Estás seguro de eliminar esta rutina? Esta acción no se puede deshacer.')) {
+    if (window.confirm('¿Estás seguro de eliminar esta rutina?')) {
       deleteMutation.mutate(routineId)
     }
   }
@@ -147,88 +133,62 @@ export default function Routines() {
           <p className="text-zinc-400 mb-6">Todavía no hay rutinas creadas.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {routines.map((routine) => (
-            <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-md">
+        <div className="flex flex-col gap-8">
+          
+          {/* ---> NUEVO: Iteramos sobre las carpetas renderizando grupos <--- */}
+          {Object.entries(groupedRoutines).map(([folderName, folderRoutines]) => (
+            <div key={folderName} className="flex flex-col gap-4">
               
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-zinc-100">{routine.name}</h2>
-                  {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
-                </div>
-                
-                {/* Agrupamos los botones en un flex */}
-                <div className="flex items-center gap-2">
-                  
-                  {/* Botón de Copiar Texto */}
-                  <button 
-                    onClick={(e) => handleExportText(e, routine)}
-                    className="text-zinc-400 hover:text-white bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
-                    aria-label="Exportar a texto plano"
-                  >
-                    <Copy size={20} />
-                  </button>
-
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); navigate(`/routines/${routine.id}/edit`); }}
-                    className="text-zinc-400 hover:text-blue-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
-                    aria-label="Editar rutina"
-                  >
-                    <Edit size={20} />
-                  </button>
-
-                  <button 
-                    onClick={(e) => handleShare(e, routine)}
-                    className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
-                    aria-label="Compartir rutina"
-                  >
-                    <Share2 size={20} />
-                  </button>
-
-                  <button 
-                    onClick={(e) => handleDelete(e, routine.id)}
-                    disabled={deleteMutation.isPending}
-                    className="text-zinc-400 hover:text-red-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50"
-                    aria-label="Eliminar rutina"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
+              {/* Título de la Carpeta */}
+              <div className="flex items-center gap-2 text-zinc-400 mb-1">
+                <Folder size={20} className="text-emerald-500" />
+                <h2 className="text-lg font-bold uppercase tracking-wide">{folderName}</h2>
               </div>
 
-              <div className="mt-4 flex flex-col gap-2">
-                {(routine.routine_days ?? []).map((day) => (
-                  <button
-                    key={day.id}
-                    onClick={() => startRoutineDay(routine, day)}
-                    className="w-full border border-zinc-700 bg-zinc-950 rounded-xl p-3 text-left active:scale-[0.99] transition-transform flex flex-col"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2 text-zinc-200">
-                        <CalendarDays size={16} className="text-zinc-400"/>
-                        <span className="font-semibold">{day.name}</span>
-                      </div>
-                      <span className="text-xs font-medium bg-zinc-800 px-2 py-1 rounded-md text-zinc-300">
-                        {(day.routine_exercises ?? []).length} ej.
-                      </span>
+              {/* Rutinas dentro de esta carpeta */}
+              {folderRoutines.map((routine) => (
+                <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-md">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-zinc-100">{routine.name}</h3>
+                      {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
                     </div>
-                    <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-500 uppercase tracking-wide">
-                      <Play size={12} fill="currentColor" />
-                      Empezar sesión
+                    
+                    <div className="flex items-center gap-2">
+                      <button onClick={(e) => handleExportText(e, routine)} className="text-zinc-400 hover:text-white bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"><Copy size={20} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); navigate(`/routines/${routine.id}/edit`); }} className="text-zinc-400 hover:text-blue-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"><Edit size={20} /></button>
+                      <button onClick={(e) => handleShare(e, routine)} className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"><Share2 size={20} /></button>
+                      <button onClick={(e) => handleDelete(e, routine.id)} disabled={deleteMutation.isPending} className="text-zinc-400 hover:text-red-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50"><Trash2 size={20} /></button>
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2">
+                    {(routine.routine_days ?? []).map((day) => (
+                      <button key={day.id} onClick={() => startRoutineDay(routine, day)} className="w-full border border-zinc-700 bg-zinc-950 rounded-xl p-3 text-left active:scale-[0.99] transition-transform flex flex-col">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2 text-zinc-200">
+                            <CalendarDays size={16} className="text-zinc-400"/>
+                            <span className="font-semibold">{day.name}</span>
+                          </div>
+                          <span className="text-xs font-medium bg-zinc-800 px-2 py-1 rounded-md text-zinc-300">
+                            {(day.routine_exercises ?? []).length} ej.
+                          </span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-500 uppercase tracking-wide">
+                          <Play size={12} fill="currentColor" /> Empezar sesión
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
+
         </div>
       )}
 
-      {/* Botón flotante para crear rutina (FAB) */}
-      <button 
-        onClick={() => navigate('/routines/new')}
-        className="fixed bottom-24 right-6 bg-emerald-500 text-zinc-950 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-transform z-40"
-      >
+      <button onClick={() => navigate('/routines/new')} className="fixed bottom-24 right-6 bg-emerald-500 text-zinc-950 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-transform z-40">
         <Plus size={28} strokeWidth={3} />
       </button>
     </div>
