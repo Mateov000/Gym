@@ -29,6 +29,11 @@ Aplicación mobile-first para seguimiento de entrenamientos, enfocada en fricci�
   - Metadatos de superseries y drop-sets en el tracking de sets.
   - Lógica de PR global con modos por ejercicio (`global`, `fixed`, `opt_out`).
   - Resolución de configuración en cascada `Ejercicio -> Rutina -> Global` para defaults de entrenamiento.
+- Sprint 6 (hardening):
+  - Manifest PWA consolidado con `id`, `start_url`, `scope` e íconos consistentes.
+  - Registro explícito de Service Worker y modo offline-first para TanStack Query.
+  - Recuperación fail-safe del descanso: se persiste `restEndsAt` y al reabrir se calcula el tiempo exacto restante.
+  - Auto-resume de sesión activa al relanzar la app (redirige a `/workout` una vez por sesión de navegador).
 
 ## Scripts
 
@@ -53,5 +58,7 @@ VITE_SUPABASE_ANON_KEY=...
 
 - `/home/runner/work/Gym/Gym/src/lib/supabase.ts`: cliente Supabase
 - `/home/runner/work/Gym/Gym/src/lib/queries.ts`: capa de acceso de datos
-- `/home/runner/work/Gym/Gym/src/store/useWorkoutStore.ts`: estado local persistente
+- `/home/runner/work/Gym/Gym/src/store/useWorkoutStore.ts`: estado local persistente + fail-safe de descanso
 - `/home/runner/work/Gym/Gym/src/pages/Workout.tsx`: motor de entrenamiento
+- `/home/runner/work/Gym/Gym/src/components/RestTimer.tsx`: temporizador con recuperación por timestamp
+- `/home/runner/work/Gym/Gym/src/lib/queryClient.ts`: políticas offline-first de query/mutation

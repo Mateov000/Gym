@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Dumbbell, Calendar, Clock, Play } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore' // 1. Importamos el store
@@ -15,6 +16,19 @@ export default function Feed() {
     queryKey: ['workout-history'],
     queryFn: () => fetchWorkoutHistory(),
   })
+
+  useEffect(() => {
+    if (!activeSession) {
+      sessionStorage.removeItem('gym-auto-resume-done')
+      return
+    }
+
+    const alreadyResumed = sessionStorage.getItem('gym-auto-resume-done') === '1'
+    if (alreadyResumed || workoutExercises.length === 0) return
+
+    sessionStorage.setItem('gym-auto-resume-done', '1')
+    navigate('/workout', { replace: true })
+  }, [activeSession, navigate, workoutExercises.length])
 
   return (
     <div className="p-6 pb-24 min-h-screen flex flex-col">

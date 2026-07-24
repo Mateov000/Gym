@@ -13,6 +13,7 @@ interface ActiveSession {
 interface WorkoutStore {
   activeSession: ActiveSession | null
   isResting: boolean
+  restEndsAt: string | null
   workoutExercises: WorkoutExercise[]
 
   startSession: (options?: WorkoutSessionOptions) => void
@@ -24,7 +25,8 @@ interface WorkoutStore {
     reps: number,
     setMeta?: Omit<LoggedSet, 'weight' | 'reps'>,
   ) => void
-  completeSet: () => void
+  completeSet: (restSeconds?: number) => void
+  stopRest: () => void
   clearSession: () => void
 }
 
@@ -33,6 +35,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
     (set) => ({
       activeSession: null,
       isResting: false,
+      restEndsAt: null,
       workoutExercises: [],
 
       // Inicia una sesión limpia
@@ -81,12 +84,21 @@ export const useWorkoutStore = create<WorkoutStore>()(
       })),
 
       // Activa el temporizador
-      completeSet: () => set({ isResting: true }),
+      completeSet: (restSeconds = 90) => set({
+        isResting: true,
+        restEndsAt: new Date(Date.now() + restSeconds * 1000).toISOString(),
+      }),
+
+      stopRest: () => set({
+        isResting: false,
+        restEndsAt: null,
+      }),
 
       // Limpia todo al terminar
       clearSession: () => set({ 
         activeSession: null, 
         isResting: false, 
+        restEndsAt: null,
         workoutExercises: [] 
       })
     }),

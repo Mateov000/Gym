@@ -44,7 +44,7 @@ const ExerciseTracker = ({
       pr_fixed_weight: workoutEx.meta?.pr_fixed_weight,
     })
     setIsCompleted(true)
-    completeSet() // Disparamos el temporizador
+    completeSet(resolvedConfig.rest_time_seconds) // Disparamos el temporizador
     setTimeout(() => setIsCompleted(false), 2000) // Reseteamos el botón
   }
 

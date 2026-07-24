@@ -14,9 +14,12 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'icons.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Gym PWA',
-        short_name: 'GymPWA',
+        id: '/',
+        name: 'GymTracker',
+        short_name: 'GymTracker',
         description: 'Tu asistente de entrenamiento fail-safe',
+        start_url: '/',
+        scope: '/',
         theme_color: '#09090b',
         background_color: '#09090b',
         display: 'standalone',
@@ -25,15 +28,16 @@ export default defineConfig({
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable',
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any',
           }
-        ]
+        ],
       }
     })
   ],
