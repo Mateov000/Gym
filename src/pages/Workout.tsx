@@ -26,12 +26,16 @@ const ExerciseTracker = ({
 }: ExerciseTrackerProps) => {
   const { addSet, completeSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
+  
+  // Resolvemos la configuración consolidada (Ejercicio -> Rutina -> Global)
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
   const currentSetIndex = sets.length
 
   // Buscamos si hay un historial para ESTA serie exacta en ESTA rutina
   const routineSpecificDefault = defaultsMap.get(`${workoutEx.meta?.routine_exercise_id}-set-${currentSetIndex}`)
+  // Buscamos si la rutina traía un peso/reps predefinido por código de texto
+  const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
   // Buscamos el último peso global del ejercicio (fallback)
   const globalDefault = defaultsMap.get(`global-${exercise.id}`)
 
@@ -43,15 +47,20 @@ const ExerciseTracker = ({
   // Magia: Cada vez que terminas una serie y pasas a la siguiente, actualizamos los números automáticamente
   useEffect(() => {
     if (routineSpecificDefault) {
+      // Prioridad 1: Tu propio historial real haciendo esta rutina la última vez
       setWeight(routineSpecificDefault.weight)
       setReps(routineSpecificDefault.reps)
+    } else if (predefinedSet) {
+      // Prioridad 2: Lo que definiste en el importador de texto/IA (Ej: 8x20)
+      setWeight(predefinedSet.weight)
+      setReps(predefinedSet.reps)
     } else if (globalDefault && currentSetIndex === 0) {
-      // Solo usamos el fallback global para la primera serie si nunca habíamos hecho esta rutina
+      // Prioridad 3: Fallback a un entrenamiento de otra rutina (Solo para arrancar la Serie 1)
       setWeight(globalDefault.weight)
       setReps(globalDefault.reps)
     }
-    // Si no hay default específico y no es la primera serie, mantenemos el peso de la serie anterior
-  }, [currentSetIndex, routineSpecificDefault, globalDefault])
+    // Si no hay default específico y no es la primera serie, mantenemos el valor de la serie anterior
+  }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
 
   const handleCheckIn = () => {
     addSet(exercise.id, weight, reps, {
@@ -164,7 +173,7 @@ const ExerciseTracker = ({
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
   const defaults = new Map<string, { weight: number; reps: number }>()
 
-  // 1. Buscamos el historial EXACTO de esta rutina
+  // 1. Primero buscamos el historial EXACTO de esta rutina
   if (routineDayId) {
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
@@ -173,6 +182,7 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
       for (const set of lastRoutineSession.workout_sets) {
         if (set.routine_exercise_id) {
           const idx = setCounters.get(set.routine_exercise_id) || 0
+          // Guardamos el peso exacto para la "Serie 0", "Serie 1", etc.
           defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps })
           setCounters.set(set.routine_exercise_id, idx + 1)
         }
@@ -180,7 +190,7 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
     }
   }
 
-  // 2. Fallback: Último peso levantado en general
+  // 2. Fallback: Último peso levantado en cualquier circunstancia
   for (const session of sessions) {
     for (const set of (session.workout_sets || [])) {
       if (!defaults.has(`global-${set.exercise_id}`)) {
@@ -227,6 +237,7 @@ export default function Workout() {
     queryFn: fetchExercises,
   })
 
+  // Alimentamos el motor inteligente
   const defaultsMap = useMemo(
     () => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null),
     [recentSessions, activeSession?.routine_day_id],
