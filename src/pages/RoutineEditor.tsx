@@ -22,12 +22,14 @@ export default function RoutineEditor() {
 
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
+  const [folder, setFolder] = useState('')
   const [days, setDays] = useState<any[]>([])
 
   useEffect(() => {
     if (routine) {
       setName(routine.name)
       setNotes(routine.notes || '')
+      setFolder(routine.folder || '')
       const mappedDays = routine.routine_days.map((d) => ({
         name: d.name,
         day_order: d.day_order,
@@ -42,7 +44,7 @@ export default function RoutineEditor() {
   }, [routine])
 
   const saveMutation = useMutation({
-    mutationFn: () => updateRoutine(id!, name, notes, days),
+    mutationFn: () => updateRoutine(id!, name, notes, folder, days),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
       navigate('/routines')
@@ -108,6 +110,15 @@ export default function RoutineEditor() {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
+        />
+        
+        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Carpeta (Opcional)</label>
+        <input
+          type="text"
+          placeholder="Ej: Hipertrofia, Pierna, Viajes..."
+          value={folder}
+          onChange={(e) => setFolder(e.target.value)}
           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
         />
 
