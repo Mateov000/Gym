@@ -16,6 +16,9 @@ function isMissingTableError(error: unknown) {
   return code === '42P01' || code === 'PGRST205'
 }
 
+// ==========================================
+// 1. EJERCICIOS (CATÁLOGO)
+// ==========================================
 export async function fetchExercises(): Promise<Exercise[]> {
   const { data, error } = await supabase
     .from('exercises')
@@ -26,6 +29,39 @@ export async function fetchExercises(): Promise<Exercise[]> {
   return (data ?? []) as Exercise[]
 }
 
+export async function createExercise(exerciseData: Partial<Exercise>) {
+  const { data, error } = await supabase
+    .from('exercises')
+    .insert(exerciseData)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateExercise(id: string, exerciseData: Partial<Exercise>) {
+  const { data, error } = await supabase
+    .from('exercises')
+    .update(exerciseData)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteExercise(id: string) {
+  const { error } = await supabase
+    .from('exercises')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+
+// ==========================================
+// 2. SESIONES Y ENTRENAMIENTO
+// ==========================================
 export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWithSets[]> {
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -159,6 +195,10 @@ export async function finishWorkoutSession({
   await savePrEvents(user.id, newSession.id, candidates)
 }
 
+
+// ==========================================
+// 3. RUTINAS (CRUD Y CREADORES)
+// ==========================================
 export async function fetchRoutines(): Promise<RoutineWithDays[]> {
   const { data, error } = await supabase
     .from('routines')
@@ -204,57 +244,6 @@ export async function fetchRoutines(): Promise<RoutineWithDays[]> {
   }))
 }
 
-export async function createRoutine(
-  name: string,
-  notes: string,
-  exercises: { exercise_id: string; sets: number; reps: number | null }[]
-) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuario no autenticado')
-
-  const { data: routine, error: routineErr } = await supabase
-    .from('routines')
-    .insert({ user_id: user.id, name, notes })
-    .select('id')
-    .single()
-
-  if (routineErr) throw routineErr
-
-  const { data: day, error: dayErr } = await supabase
-    .from('routine_days')
-    .insert({ routine_id: routine.id, name: 'Día 1', day_order: 1 })
-    .select('id')
-    .single()
-
-  if (dayErr) throw dayErr
-
-  const exercisesPayload = exercises.map((ex) => ({
-    routine_day_id: day.id,
-    exercise_id: ex.exercise_id,
-    target_sets: ex.sets,
-    target_reps: ex.reps,
-  }))
-
-  if (exercisesPayload.length > 0) {
-    const { error: exercisesErr } = await supabase
-      .from('routine_exercises')
-      .insert(exercisesPayload)
-      
-    if (exercisesErr) throw exercisesErr
-  }
-
-  return routine.id
-}
-
-export async function deleteRoutine(routineId: string) {
-  const { error } = await supabase
-    .from('routines')
-    .delete()
-    .eq('id', routineId)
-
-  if (error) throw error
-}
-
 export async function fetchRoutineById(id: string): Promise<RoutineWithDays | null> {
   const { data, error } = await supabase
     .from('routines')
@@ -278,6 +267,60 @@ export async function fetchRoutineById(id: string): Promise<RoutineWithDays | nu
   const routine = data as RoutineWithDays
   routine.routine_days = (routine.routine_days ?? []).sort((a, b) => a.day_order - b.day_order)
   return routine
+}
+
+export async function updateRoutine(
+  routineId: string,
+  name: string,
+  notes: string,
+  folder: string | null,
+  days: any[]
+) {
+  const { error: updateErr } = await supabase
+    .from('routines')
+    .update({ name, notes, folder: folder || null })
+    .eq('id', routineId);
+  
+  if (updateErr) throw updateErr;
+
+  const { error: delErr } = await supabase
+    .from('routine_days')
+    .delete()
+    .eq('routine_id', routineId);
+
+  if (delErr) throw delErr;
+
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    const { data: newDay, error: dayErr } = await supabase
+      .from('routine_days')
+      .insert({ routine_id: routineId, name: day.name, day_order: day.day_order })
+      .select('id')
+      .single();
+    
+    if (dayErr) throw dayErr;
+
+    if (day.exercises.length > 0) {
+      const exPayload = day.exercises.map((ex: any) => ({
+        routine_day_id: newDay.id,
+        exercise_id: ex.exercise_id,
+        target_sets: ex.target_sets,
+        target_reps: ex.target_reps,
+        config: ex.config,
+      }));
+      const { error: exErr } = await supabase.from('routine_exercises').insert(exPayload);
+      if (exErr) throw exErr;
+    }
+  }
+}
+
+export async function deleteRoutine(routineId: string) {
+  const { error } = await supabase
+    .from('routines')
+    .delete()
+    .eq('id', routineId)
+
+  if (error) throw error
 }
 
 export async function cloneRoutine(routineId: string) {
@@ -339,75 +382,98 @@ export async function cloneRoutine(routineId: string) {
   return newRoutine.id
 }
 
-export async function updateRoutine(
-  routineId: string,
+// Mantenemos la creación legacy (por si requieres fallback a rutinas de texto corto)
+export async function createRoutine(
   name: string,
   notes: string,
-  folder: string | null,
-  days: any[]
+  exercises: { exercise_id: string; sets: number; reps: number | null }[]
 ) {
-  const { error: updateErr } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
+  const { data: routine, error: routineErr } = await supabase
     .from('routines')
-    .update({ name, notes, folder: folder || null })
-    .eq('id', routineId);
-  
-  if (updateErr) throw updateErr;
+    .insert({ user_id: user.id, name, notes })
+    .select('id')
+    .single()
 
-  const { error: delErr } = await supabase
+  if (routineErr) throw routineErr
+
+  const { data: day, error: dayErr } = await supabase
     .from('routine_days')
-    .delete()
-    .eq('routine_id', routineId);
+    .insert({ routine_id: routine.id, name: 'Día 1', day_order: 1 })
+    .select('id')
+    .single()
 
-  if (delErr) throw delErr;
+  if (dayErr) throw dayErr
+
+  const exercisesPayload = exercises.map((ex) => ({
+    routine_day_id: day.id,
+    exercise_id: ex.exercise_id,
+    target_sets: ex.sets,
+    target_reps: ex.reps,
+  }))
+
+  if (exercisesPayload.length > 0) {
+    const { error: exercisesErr } = await supabase
+      .from('routine_exercises')
+      .insert(exercisesPayload)
+      
+    if (exercisesErr) throw exercisesErr
+  }
+
+  return routine.id
+}
+
+// ---> CREADOR ESTRUCTURADO (MULTIDÍA + CONFIGURACIÓN POR SERIE) <---
+export async function createStructuredRoutine(
+  name: string,
+  folder: string,
+  notes: string,
+  days: {
+    name: string;
+    exercises: {
+      exercise_id: string;
+      target_sets: number;
+      target_reps: number;
+      config: any;
+    }[];
+  }[]
+) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
+  const { data: routine, error: routineErr } = await supabase
+    .from('routines')
+    .insert({ user_id: user.id, name, folder: folder || null, notes })
+    .select('id')
+    .single()
+
+  if (routineErr) throw routineErr
 
   for (let i = 0; i < days.length; i++) {
-    const day = days[i];
+    const day = days[i]
     const { data: newDay, error: dayErr } = await supabase
       .from('routine_days')
-      .insert({ routine_id: routineId, name: day.name, day_order: day.day_order })
+      .insert({ routine_id: routine.id, name: day.name, day_order: i + 1 })
       .select('id')
-      .single();
-    
-    if (dayErr) throw dayErr;
+      .single()
+      
+    if (dayErr) throw dayErr
 
     if (day.exercises.length > 0) {
-      const exPayload = day.exercises.map((ex: any) => ({
+      const exPayload = day.exercises.map((ex) => ({
         routine_day_id: newDay.id,
         exercise_id: ex.exercise_id,
         target_sets: ex.target_sets,
         target_reps: ex.target_reps,
-      }));
-      const { error: exErr } = await supabase.from('routine_exercises').insert(exPayload);
-      if (exErr) throw exErr;
+        config: ex.config,
+      }))
+
+      const { error: exErr } = await supabase.from('routine_exercises').insert(exPayload)
+      if (exErr) throw exErr
     }
   }
-}
-// ---> NUEVO: CRUD de Ejercicios <---
-export async function createExercise(exerciseData: Partial<Exercise>) {
-  const { data, error } = await supabase
-    .from('exercises')
-    .insert(exerciseData)
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
 
-export async function updateExercise(id: string, exerciseData: Partial<Exercise>) {
-  const { data, error } = await supabase
-    .from('exercises')
-    .update(exerciseData)
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
-
-export async function deleteExercise(id: string) {
-  const { error } = await supabase
-    .from('exercises')
-    .delete()
-    .eq('id', id)
-  if (error) throw error
+  return routine.id
 }
