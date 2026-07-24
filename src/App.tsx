@@ -9,8 +9,9 @@ import Workout from './pages/Workout'
 import Feed from './pages/Feed'
 import Exercises from './pages/Exercises'
 import Routines from './pages/Routines'
-import RoutineBuilder from './pages/RoutineBuilder' 
+import RoutineBuilder from './pages/RoutineBuilder'
 import SharedRoutine from './pages/SharedRoutine'
+import RoutineEditor from './pages/RoutineEditor' // <-- IMPORTACIÓN DEL EDITOR
 
 // Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/workout" element={<Workout />} />
         <Route path="/routines/new" element={<RoutineBuilder />} />
         <Route path="/routines/shared/:id" element={<SharedRoutine />} />
+        <Route path="/routines/:id/edit" element={<RoutineEditor />} /> {/* <-- NUEVA RUTA DEL EDITOR */}
       </Routes>
     </BrowserRouter>
   )
