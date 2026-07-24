@@ -52,15 +52,20 @@ export interface WorkoutExercise {
   meta?: WorkoutExerciseMeta
 }
 
+// ---> ACTUALIZADO: Agregamos routine_exercise_id <---
 export interface PersistedWorkoutSet {
   exercise_id: string
+  routine_exercise_id?: string | null
   weight: number
   reps: number
   is_completed: boolean
 }
 
+// ---> ACTUALIZADO: Agregamos IDs de la rutina <---
 export interface WorkoutSessionWithSets {
   id: string
   start_time: string
+  routine_id?: string | null
+  routine_day_id?: string | null
   workout_sets: PersistedWorkoutSet[] | null
 }
