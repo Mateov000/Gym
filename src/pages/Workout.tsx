@@ -50,7 +50,7 @@ const ExerciseTracker = ({
       setWeight(globalDefault.weight)
       setReps(globalDefault.reps)
     }
-    // Si no hay default específico y no es la primera serie, mantenemos el peso de la serie anterior (que es lo más natural)
+    // Si no hay default específico y no es la primera serie, mantenemos el peso de la serie anterior
   }, [currentSetIndex, routineSpecificDefault, globalDefault])
 
   const handleCheckIn = () => {
@@ -80,6 +80,11 @@ const ExerciseTracker = ({
             {workoutEx.meta?.set_type === 'drop_set' && (
               <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">
                 Drop set
+              </span>
+            )}
+            {workoutEx.meta?.pr_mode === 'opt_out' && (
+              <span className="text-[10px] uppercase tracking-wide bg-zinc-700/40 text-zinc-300 border border-zinc-600 rounded px-2 py-0.5">
+                PR Off
               </span>
             )}
           </div>
@@ -155,13 +160,12 @@ const ExerciseTracker = ({
   )
 }
 
-// ---> NUEVO: Motor Inteligente Contextual <---
+// ---> Motor Inteligente Contextual <---
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
   const defaults = new Map<string, { weight: number; reps: number }>()
 
-  // 1. Primero buscamos el historial EXACTO de esta rutina
+  // 1. Buscamos el historial EXACTO de esta rutina
   if (routineDayId) {
-    // Buscamos la última vez que hizo este día específico
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
       const setCounters = new Map<string, number>()
@@ -169,7 +173,6 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
       for (const set of lastRoutineSession.workout_sets) {
         if (set.routine_exercise_id) {
           const idx = setCounters.get(set.routine_exercise_id) || 0
-          // Guardamos el peso exacto para la "Serie 0", "Serie 1", etc. de este ejercicio
           defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps })
           setCounters.set(set.routine_exercise_id, idx + 1)
         }
@@ -177,7 +180,7 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
     }
   }
 
-  // 2. Fallback: Último peso levantado en cualquier circunstancia para prellenar nuevos ejercicios
+  // 2. Fallback: Último peso levantado en general
   for (const session of sessions) {
     for (const set of (session.workout_sets || [])) {
       if (!defaults.has(`global-${set.exercise_id}`)) {
@@ -224,7 +227,6 @@ export default function Workout() {
     queryFn: fetchExercises,
   })
 
-  // Alimentamos el motor inteligente
   const defaultsMap = useMemo(
     () => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null),
     [recentSessions, activeSession?.routine_day_id],
@@ -277,7 +279,7 @@ export default function Workout() {
           <ExerciseTracker
             key={`${workoutEx.exercise.id}-${index}`}
             workoutEx={workoutEx}
-            defaultsMap={defaultsMap} /* <-- Pasamos el mapa completo */
+            defaultsMap={defaultsMap}
             swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)}
             onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)}
           />
