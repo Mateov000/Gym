@@ -2,6 +2,9 @@ export interface Exercise {
   id: string
   name: string
   muscle_group: string | null
+description?: string | null // <-- NUEVO
+  image_url?: string | null   // <-- NUEVO
+
   alternative_exercise_ids?: string[] | null
   alternatives?: Exercise[]
   config?: ExerciseConfig | null
