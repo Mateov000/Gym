@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
+import { useWakeLock } from '../hooks/useWakeLock'
 import SmartStepper from '../components/SmartStepper'
 import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
@@ -180,6 +181,8 @@ export default function Workout() {
   const { activeSession, workoutExercises, replaceExercise, clearSession } = useWorkoutStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  useWakeLock(!!activeSession)
 
   const { data: recentSessions = [] } = useQuery({
     queryKey: ['workout-history', 'smart-defaults'],
