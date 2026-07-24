@@ -330,3 +330,12 @@ export async function cloneRoutine(routineId: string) {
 
   return newRoutine.id
 }
+// ---> NUEVO: Función para eliminar rutinas (Delete) <---
+export async function deleteRoutine(routineId: string) {
+  const { error } = await supabase
+    .from('routines')
+    .delete()
+    .eq('id', routineId)
+
+  if (error) throw error
+}

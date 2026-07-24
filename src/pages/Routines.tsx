@@ -1,9 +1,9 @@
+// Reemplaza tus importaciones superiores con esto:
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play, Plus, Share2 } from 'lucide-react'
-import { fetchExercises, fetchRoutines } from '../lib/queries'
-import { useWorkoutStore } from '../store/useWorkoutStore'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query' // <-- Añadidos mutation y queryClient
+import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2 } from 'lucide-react' // <-- Añadido Trash2
+import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries' // <-- Añadido deleteRoutineimport { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import type { Exercise } from '../types/workout'
 import type { RoutineDayWithExercises, RoutineWithDays } from '../types/routine'
@@ -14,6 +14,7 @@ function buildExerciseMap(exercises: Exercise[]) {
 
 export default function Routines() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { startSession, addExercise, activeSession } = useWorkoutStore()
 
   const { data: routines = [], isLoading } = useQuery({
@@ -111,13 +112,25 @@ export default function Routines() {
                   {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
                 </div>
                 
-                <button 
-                  onClick={(e) => handleShare(e, routine)}
-                  className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
-                  aria-label="Compartir rutina"
-                >
-                  <Share2 size={20} />
-                </button>
+                {/* NUEVO: Agrupamos los botones en un flex */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => handleShare(e, routine)}
+                    className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
+                    aria-label="Compartir rutina"
+                  >
+                    <Share2 size={20} />
+                  </button>
+
+                  <button 
+                    onClick={(e) => handleDelete(e, routine.id)}
+                    disabled={deleteMutation.isPending}
+                    className="text-zinc-400 hover:text-red-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95 disabled:opacity-50"
+                    aria-label="Eliminar rutina"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
