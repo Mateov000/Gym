@@ -26,14 +26,18 @@ export async function fetchExercises(): Promise<Exercise[]> {
   return (data ?? []) as Exercise[]
 }
 
+// ---> ACTUALIZADO: Trae el contexto de la rutina y la serie exacta <---
 export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWithSets[]> {
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(`
       id,
       start_time,
+      routine_id,
+      routine_day_id,
       workout_sets (
         exercise_id,
+        routine_exercise_id,
         weight,
         reps,
         is_completed
@@ -200,7 +204,7 @@ export async function fetchRoutines(): Promise<RoutineWithDays[]> {
   }))
 }
 
-// ---> NUEVO: Función para crear la rutina desde el NLP Builder <---
+// ---> Creador de Rutinas por NLP <---
 export async function createRoutine(
   name: string,
   notes: string,
@@ -209,7 +213,6 @@ export async function createRoutine(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuario no autenticado')
 
-  // 1. Insertar Rutina Principal
   const { data: routine, error: routineErr } = await supabase
     .from('routines')
     .insert({ user_id: user.id, name, notes })
@@ -218,7 +221,6 @@ export async function createRoutine(
 
   if (routineErr) throw routineErr
 
-  // 2. Insertar Día 1 por defecto
   const { data: day, error: dayErr } = await supabase
     .from('routine_days')
     .insert({ routine_id: routine.id, name: 'Día 1', day_order: 1 })
@@ -227,7 +229,6 @@ export async function createRoutine(
 
   if (dayErr) throw dayErr
 
-  // 3. Insertar Ejercicios Mapeados
   const exercisesPayload = exercises.map((ex) => ({
     routine_day_id: day.id,
     exercise_id: ex.exercise_id,
@@ -245,7 +246,18 @@ export async function createRoutine(
 
   return routine.id
 }
-// ---> NUEVO: Funciones para Deep Linking (Compartir y Clonar) <---
+
+// ---> Eliminar Rutinas (Delete) <---
+export async function deleteRoutine(routineId: string) {
+  const { error } = await supabase
+    .from('routines')
+    .delete()
+    .eq('id', routineId)
+
+  if (error) throw error
+}
+
+// ---> Funciones para Deep Linking (Compartir y Clonar) <---
 export async function fetchRoutineById(id: string): Promise<RoutineWithDays | null> {
   const { data, error } = await supabase
     .from('routines')
@@ -278,7 +290,6 @@ export async function cloneRoutine(routineId: string) {
   const original = await fetchRoutineById(routineId)
   if (!original) throw new Error('Rutina no encontrada')
 
-  // 1. Clonar Rutina Principal (le agregamos la etiqueta "Clon" al nombre)
   const { data: newRoutine, error: routineErr } = await supabase
     .from('routines')
     .insert({ 
@@ -293,7 +304,6 @@ export async function cloneRoutine(routineId: string) {
 
   if (routineErr) throw routineErr
 
-  // 2. Clonar Días y Ejercicios
   for (const day of original.routine_days) {
     const { data: newDay, error: dayErr } = await supabase
       .from('routine_days')
@@ -329,13 +339,4 @@ export async function cloneRoutine(routineId: string) {
   }
 
   return newRoutine.id
-}
-// ---> NUEVO: Función para eliminar rutinas (Delete) <---
-export async function deleteRoutine(routineId: string) {
-  const { error } = await supabase
-    .from('routines')
-    .delete()
-    .eq('id', routineId)
-
-  if (error) throw error
 }
