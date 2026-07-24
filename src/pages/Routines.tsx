@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play, Plus } from 'lucide-react'
+import { BookOpen, CalendarDays, Play, Plus, Share2 } from 'lucide-react'
 import { fetchExercises, fetchRoutines } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
@@ -65,6 +65,27 @@ export default function Routines() {
     navigate('/workout')
   }
 
+  const handleShare = async (e: React.MouseEvent, routine: RoutineWithDays) => {
+    e.stopPropagation(); // Evita que se abra la rutina al tocar el botón
+    const shareUrl = `${window.location.origin}/routines/shared/${routine.id}`;
+    const shareData = {
+      title: `Rutina: ${routine.name}`,
+      text: `¡Mira esta rutina en Gym PWA! 💪`,
+      url: shareUrl
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.error("Error al compartir", err);
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('¡Enlace copiado al portapapeles!');
+    }
+  };
+
   return (
     <div className="p-6 pb-24 min-h-screen relative">
       <div className="flex justify-between items-center mb-6">
@@ -82,8 +103,22 @@ export default function Routines() {
         <div className="flex flex-col gap-4">
           {routines.map((routine) => (
             <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-md">
-              <h2 className="text-xl font-bold text-zinc-100">{routine.name}</h2>
-              {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
+              
+              {/* NUEVO: Contenedor flex para alinear el título a la izquierda y el botón a la derecha */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-zinc-100">{routine.name}</h2>
+                  {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
+                </div>
+                
+                <button 
+                  onClick={(e) => handleShare(e, routine)}
+                  className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
+                  aria-label="Compartir rutina"
+                >
+                  <Share2 size={20} />
+                </button>
+              </div>
 
               <div className="mt-4 flex flex-col gap-2">
                 {(routine.routine_days ?? []).map((day) => (

@@ -9,7 +9,8 @@ import Workout from './pages/Workout'
 import Feed from './pages/Feed'
 import Exercises from './pages/Exercises'
 import Routines from './pages/Routines'
-import RoutineBuilder from './pages/RoutineBuilder' // <-- Importación agregada
+import RoutineBuilder from './pages/RoutineBuilder' 
+import SharedRoutine from './pages/SharedRoutine'
 
 // Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
@@ -62,7 +63,8 @@ export default function App() {
         
         {/* GRUPO 2: Pantallas a pantalla completa (sin barra de navegación) */}
         <Route path="/workout" element={<Workout />} />
-        <Route path="/routines/new" element={<RoutineBuilder />} /> {/* <-- Ruta agregada */}
+        <Route path="/routines/new" element={<RoutineBuilder />} />
+        <Route path="/routines/shared/:id" element={<SharedRoutine />} />
       </Routes>
     </BrowserRouter>
   )

@@ -245,3 +245,88 @@ export async function createRoutine(
 
   return routine.id
 }
+// ---> NUEVO: Funciones para Deep Linking (Compartir y Clonar) <---
+export async function fetchRoutineById(id: string): Promise<RoutineWithDays | null> {
+  const { data, error } = await supabase
+    .from('routines')
+    .select(`
+      id, name, notes, version, is_pr_opt_out, config,
+      routine_days (
+        id, routine_id, name, day_order, config,
+        routine_exercises (
+          id, routine_day_id, exercise_id, target_sets, target_reps, superset_id, set_type, pr_mode, pr_fixed_weight, config
+        )
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
+
+  const routine = data as RoutineWithDays
+  routine.routine_days = (routine.routine_days ?? []).sort((a, b) => a.day_order - b.day_order)
+  return routine
+}
+
+export async function cloneRoutine(routineId: string) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
+  const original = await fetchRoutineById(routineId)
+  if (!original) throw new Error('Rutina no encontrada')
+
+  // 1. Clonar Rutina Principal (le agregamos la etiqueta "Clon" al nombre)
+  const { data: newRoutine, error: routineErr } = await supabase
+    .from('routines')
+    .insert({ 
+      user_id: user.id, 
+      name: `${original.name} (Clon)`, 
+      notes: original.notes,
+      is_pr_opt_out: original.is_pr_opt_out,
+      config: original.config 
+    })
+    .select('id')
+    .single()
+
+  if (routineErr) throw routineErr
+
+  // 2. Clonar Días y Ejercicios
+  for (const day of original.routine_days) {
+    const { data: newDay, error: dayErr } = await supabase
+      .from('routine_days')
+      .insert({ 
+        routine_id: newRoutine.id, 
+        name: day.name, 
+        day_order: day.day_order, 
+        config: day.config 
+      })
+      .select('id')
+      .single()
+      
+    if (dayErr) throw dayErr
+
+    const exercisesPayload = (day.routine_exercises ?? []).map((ex) => ({
+      routine_day_id: newDay.id,
+      exercise_id: ex.exercise_id,
+      target_sets: ex.target_sets,
+      target_reps: ex.target_reps,
+      superset_id: ex.superset_id,
+      set_type: ex.set_type,
+      pr_mode: ex.pr_mode,
+      pr_fixed_weight: ex.pr_fixed_weight,
+      config: ex.config
+    }))
+
+    if (exercisesPayload.length > 0) {
+      const { error: exercisesErr } = await supabase
+        .from('routine_exercises')
+        .insert(exercisesPayload)
+      if (exercisesErr) throw exercisesErr
+    }
+  }
+
+  return newRoutine.id
+}
