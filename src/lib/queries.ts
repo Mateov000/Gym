@@ -26,7 +26,6 @@ export async function fetchExercises(): Promise<Exercise[]> {
   return (data ?? []) as Exercise[]
 }
 
-// ---> ACTUALIZADO: Trae el contexto de la rutina y la serie exacta <---
 export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWithSets[]> {
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -166,6 +165,7 @@ export async function fetchRoutines(): Promise<RoutineWithDays[]> {
     .select(`
       id,
       name,
+      folder,
       notes,
       version,
       is_pr_opt_out,
@@ -204,7 +204,6 @@ export async function fetchRoutines(): Promise<RoutineWithDays[]> {
   }))
 }
 
-// ---> Creador de Rutinas por NLP <---
 export async function createRoutine(
   name: string,
   notes: string,
@@ -247,7 +246,6 @@ export async function createRoutine(
   return routine.id
 }
 
-// ---> Eliminar Rutinas (Delete) <---
 export async function deleteRoutine(routineId: string) {
   const { error } = await supabase
     .from('routines')
@@ -257,12 +255,11 @@ export async function deleteRoutine(routineId: string) {
   if (error) throw error
 }
 
-// ---> Funciones para Deep Linking (Compartir y Clonar) <---
 export async function fetchRoutineById(id: string): Promise<RoutineWithDays | null> {
   const { data, error } = await supabase
     .from('routines')
     .select(`
-      id, name, notes, version, is_pr_opt_out, config,
+      id, name, folder, notes, version, is_pr_opt_out, config,
       routine_days (
         id, routine_id, name, day_order, config,
         routine_exercises (
@@ -295,6 +292,7 @@ export async function cloneRoutine(routineId: string) {
     .insert({ 
       user_id: user.id, 
       name: `${original.name} (Clon)`, 
+      folder: original.folder,
       notes: original.notes,
       is_pr_opt_out: original.is_pr_opt_out,
       config: original.config 
@@ -341,30 +339,20 @@ export async function cloneRoutine(routineId: string) {
   return newRoutine.id
 }
 
-// ---> NUEVO: Editor Visual de Rutinas (Update) <---
 export async function updateRoutine(
   routineId: string,
   name: string,
   notes: string,
-  days: {
-    name: string;
-    day_order: number;
-    exercises: {
-      exercise_id: string;
-      target_sets: number;
-      target_reps: number;
-    }[];
-  }[]
+  folder: string | null,
+  days: any[]
 ) {
-  // 1. Actualizar datos básicos de la rutina
   const { error: updateErr } = await supabase
     .from('routines')
-    .update({ name, notes })
+    .update({ name, notes, folder: folder || null })
     .eq('id', routineId);
   
   if (updateErr) throw updateErr;
 
-  // 2. Destrucción táctica: Borramos los días viejos (Supabase borrará los ejercicios en cascada)
   const { error: delErr } = await supabase
     .from('routine_days')
     .delete()
@@ -372,7 +360,6 @@ export async function updateRoutine(
 
   if (delErr) throw delErr;
 
-  // 3. Recreación limpia: Insertamos la nueva estructura
   for (let i = 0; i < days.length; i++) {
     const day = days[i];
     const { data: newDay, error: dayErr } = await supabase
@@ -384,7 +371,7 @@ export async function updateRoutine(
     if (dayErr) throw dayErr;
 
     if (day.exercises.length > 0) {
-      const exPayload = day.exercises.map((ex) => ({
+      const exPayload = day.exercises.map((ex: any) => ({
         routine_day_id: newDay.id,
         exercise_id: ex.exercise_id,
         target_sets: ex.target_sets,
