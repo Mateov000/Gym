@@ -4,41 +4,57 @@ import { useWorkoutStore } from '../store/useWorkoutStore'
 
 export default function RestTimer() {
   // Leemos si el cerebro global nos dice que debemos descansar
-  const { isResting } = useWorkoutStore()
+  const { isResting, restEndsAt, completeSet, stopRest } = useWorkoutStore()
   
   const [timeLeft, setTimeLeft] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null)
 
-  // Cuando marcamos una serie, Zustand activa isResting
+  const computeTimeLeft = () => {
+    if (!restEndsAt) return 0
+    return Math.max(0, Math.ceil((new Date(restEndsAt).getTime() - Date.now()) / 1000))
+  }
+
+  // Cuando marcamos una serie, Zustand activa isResting y guarda el timestamp final.
   useEffect(() => {
     if (isResting) {
-      setTimeLeft(90) // 1:30 por defecto
+      setTimeLeft(computeTimeLeft())
       setIsVisible(true)
+    } else {
+      setIsVisible(false)
+      setTimeLeft(0)
     }
-  }, [isResting])
+  }, [isResting, restEndsAt])
 
-  // La lógica de la cuenta regresiva
-  // La lógica de la cuenta regresiva
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>
     
-    if (isVisible && timeLeft > 0) {
+    if (isVisible) {
       interval = setInterval(() => {
-        setTimeLeft((prev) => prev - 1)
+        setTimeLeft(computeTimeLeft())
       }, 1000)
-    } else if (timeLeft <= 0 && isVisible) {
-      // Cuando llega a 0, se cierra automáticamente
-      closeTimer()
     }
     
     return () => clearInterval(interval)
-  }, [isVisible, timeLeft])
+  }, [isVisible, restEndsAt])
 
   const closeTimer = () => {
-    setIsVisible(false)
-    // Apagamos el estado de descanso modificando Zustand directamente
-    useWorkoutStore.setState({ isResting: false })
+    stopRest()
+  }
+
+  useEffect(() => {
+    if (isVisible && timeLeft <= 0) {
+      closeTimer()
+    }
+  }, [isVisible, timeLeft])
+
+  const adjustTime = (deltaSeconds: number) => {
+    const next = Math.max(0, timeLeft + deltaSeconds)
+    if (next === 0) {
+      closeTimer()
+      return
+    }
+    completeSet(next)
   }
 
   useEffect(() => {
@@ -90,7 +106,7 @@ export default function RestTimer() {
       
       {/* Botón de restar tiempo */}
       <button 
-        onClick={() => setTimeLeft(prev => Math.max(0, prev - 30))}
+        onClick={() => adjustTime(-30)}
         className="bg-zinc-700/50 p-2 rounded-lg text-zinc-300 active:bg-zinc-700"
       >
         <Minus size={20} />
@@ -104,7 +120,7 @@ export default function RestTimer() {
 
       {/* Botón de sumar tiempo */}
       <button 
-        onClick={() => setTimeLeft(prev => prev + 30)}
+        onClick={() => adjustTime(30)}
         className="bg-zinc-700/50 p-2 rounded-lg text-zinc-300 active:bg-zinc-700"
       >
         <Plus size={20} />

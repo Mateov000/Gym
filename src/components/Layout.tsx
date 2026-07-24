@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { Home, Dumbbell, User } from 'lucide-react'
+import { Home, Dumbbell, BookOpen, User } from 'lucide-react'
 
 export default function Layout() {
   const location = useLocation()
@@ -16,7 +16,7 @@ export default function Layout() {
       </div>
 
       {/* Menú de Navegación Inferior */}
-      <nav className="fixed bottom-0 w-full bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-6 py-3 flex justify-around items-center z-50 pb-safe">
+      <nav className="fixed bottom-0 w-full bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 py-3 flex justify-around items-center z-50 pb-safe">
         
         {/* Botón Feed */}
         <Link 
@@ -38,6 +38,16 @@ export default function Layout() {
         >
           <Dumbbell size={24} />
           <span className="text-xs font-medium">Entrenar</span>
+        </Link>
+
+        <Link
+          to="/routines"
+          className={`flex flex-col items-center gap-1 transition-colors ${
+            location.pathname === '/routines' ? 'text-emerald-500' : 'text-zinc-500 hover:text-zinc-400'
+          }`}
+        >
+          <BookOpen size={24} />
+          <span className="text-xs font-medium">Rutinas</span>
         </Link>
 
         {/* Botón Perfil */}
