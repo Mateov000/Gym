@@ -8,6 +8,7 @@ import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
+import { resolveExerciseConfig } from '../lib/configCascade'
 
 interface ExerciseTrackerProps {
   workoutEx: WorkoutExercise
@@ -27,14 +28,21 @@ const ExerciseTracker = ({
 }: ExerciseTrackerProps) => {
   const { addSet, completeSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
+  const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
-  const [weight, setWeight] = useState(defaultWeight)
-  const [reps, setReps] = useState(defaultReps)
+  const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? defaultWeight)
+  const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? defaultReps)
   const [isCompleted, setIsCompleted] = useState(false)
   const [showSwapList, setShowSwapList] = useState(false)
 
   const handleCheckIn = () => {
-    addSet(exercise.id, weight, reps) // Guardamos la serie en Zustand
+    addSet(exercise.id, weight, reps, {
+      routine_exercise_id: workoutEx.meta?.routine_exercise_id,
+      superset_id: workoutEx.meta?.superset_id,
+      set_type: workoutEx.meta?.set_type ?? 'normal',
+      pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out',
+      pr_fixed_weight: workoutEx.meta?.pr_fixed_weight,
+    })
     setIsCompleted(true)
     completeSet() // Disparamos el temporizador
     setTimeout(() => setIsCompleted(false), 2000) // Reseteamos el botón
@@ -43,7 +51,26 @@ const ExerciseTracker = ({
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-emerald-500">{exercise.name}</h2>
+        <div>
+          <h2 className="text-xl font-bold text-emerald-500">{exercise.name}</h2>
+          <div className="flex gap-2 mt-1">
+            {workoutEx.meta?.superset_id && (
+              <span className="text-[10px] uppercase tracking-wide bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-0.5">
+                Superset
+              </span>
+            )}
+            {workoutEx.meta?.set_type === 'drop_set' && (
+              <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">
+                Drop set
+              </span>
+            )}
+            {workoutEx.meta?.pr_mode === 'opt_out' && (
+              <span className="text-[10px] uppercase tracking-wide bg-zinc-700/40 text-zinc-300 border border-zinc-600 rounded px-2 py-0.5">
+                PR Off
+              </span>
+            )}
+          </div>
+        </div>
         <span className="text-sm text-zinc-400">{sets.length} series</span>
       </div>
 
@@ -61,7 +88,13 @@ const ExerciseTracker = ({
 
       {/* Controles para la nueva serie */}
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <SmartStepper label="Peso" value={weight} step={2.5} unit="kg" onChange={setWeight} />
+        <SmartStepper
+          label="Peso"
+          value={weight}
+          step={resolvedConfig.stepper_increment}
+          unit={resolvedConfig.weight_unit}
+          onChange={setWeight}
+        />
         <SmartStepper label="Reps" value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
       
@@ -169,6 +202,12 @@ export default function Workout() {
       await finishWorkoutSession({
         startTime: activeSession.start_time,
         workoutExercises,
+        sessionOptions: {
+          routine_id: activeSession.routine_id,
+          routine_day_id: activeSession.routine_day_id,
+          disable_prs: activeSession.disable_prs,
+          config: activeSession.config,
+        },
       })
     },
     onSuccess: async () => {

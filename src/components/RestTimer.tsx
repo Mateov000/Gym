@@ -4,7 +4,7 @@ import { useWorkoutStore } from '../store/useWorkoutStore'
 
 export default function RestTimer() {
   // Leemos si el cerebro global nos dice que debemos descansar
-  const { isResting } = useWorkoutStore()
+  const { isResting, activeSession } = useWorkoutStore()
   
   const [timeLeft, setTimeLeft] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
@@ -13,10 +13,10 @@ export default function RestTimer() {
   // Cuando marcamos una serie, Zustand activa isResting
   useEffect(() => {
     if (isResting) {
-      setTimeLeft(90) // 1:30 por defecto
+      setTimeLeft(activeSession?.config?.rest_time_seconds ?? 90)
       setIsVisible(true)
     }
-  }, [isResting])
+  }, [activeSession?.config?.rest_time_seconds, isResting])
 
   // La lógica de la cuenta regresiva
   // La lógica de la cuenta regresiva

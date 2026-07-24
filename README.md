@@ -23,6 +23,12 @@ Aplicación mobile-first para seguimiento de entrenamientos, enfocada en fricci�
   - Prioriza alternativas explícitas si el ejercicio las incluye.
   - Fallback por mismo grupo muscular.
 - Smart defaults por ejercicio usando historial reciente.
+- Sprint 5 (base operativa):
+  - Jerarquía de rutinas: Rutina -> Días -> Ejercicios.
+  - Selector de día de rutina desde la pantalla `Rutinas`.
+  - Metadatos de superseries y drop-sets en el tracking de sets.
+  - Lógica de PR global con modos por ejercicio (`global`, `fixed`, `opt_out`).
+  - Resolución de configuración en cascada `Ejercicio -> Rutina -> Global` para defaults de entrenamiento.
 
 ## Scripts
 

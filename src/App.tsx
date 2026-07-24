@@ -8,6 +8,7 @@ import Layout from './components/Layout'
 import Workout from './pages/Workout'
 import Feed from './pages/Feed'
 import Exercises from './pages/Exercises'
+import Routines from './pages/Routines'
 
 // Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
@@ -56,6 +57,7 @@ export default function App() {
         {/* GRUPO 1: Pantallas con barra de navegación inferior */}
         <Route element={<Layout />}>
           <Route path="/" element={<Feed />} />
+          <Route path="/routines" element={<Routines />} />
           <Route path="/exercises" element={<Exercises />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
