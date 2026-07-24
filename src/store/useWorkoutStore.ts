@@ -18,7 +18,12 @@ interface WorkoutStore {
   startSession: (options?: WorkoutSessionOptions) => void
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
   replaceExercise: (fromExerciseId: string, toExercise: Exercise) => void
-  addSet: (exerciseId: string, weight: number, reps: number, setMeta?: LoggedSet) => void
+  addSet: (
+    exerciseId: string,
+    weight: number,
+    reps: number,
+    setMeta?: Omit<LoggedSet, 'weight' | 'reps'>,
+  ) => void
   completeSet: () => void
   clearSession: () => void
 }
