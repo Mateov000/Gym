@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2 } from 'lucide-react'
+import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2, Edit } from 'lucide-react'
 import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
@@ -80,7 +80,7 @@ export default function Routines() {
 
   // Función para compartir rutina
   const handleShare = async (e: React.MouseEvent, routine: RoutineWithDays) => {
-    e.stopPropagation() // Evita que se abra la rutina al tocar el botón
+    e.stopPropagation()
     const shareUrl = `${window.location.origin}/routines/shared/${routine.id}`
     const shareData = {
       title: `Rutina: ${routine.name}`,
@@ -126,7 +126,6 @@ export default function Routines() {
           {routines.map((routine) => (
             <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-md">
               
-              {/* Contenedor flex para alinear el título a la izquierda y los botones a la derecha */}
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-zinc-100">{routine.name}</h2>
@@ -135,6 +134,14 @@ export default function Routines() {
                 
                 {/* Agrupamos los botones en un flex */}
                 <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigate(`/routines/${routine.id}/edit`); }}
+                    className="text-zinc-400 hover:text-blue-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
+                    aria-label="Editar rutina"
+                  >
+                    <Edit size={20} />
+                  </button>
+
                   <button 
                     onClick={(e) => handleShare(e, routine)}
                     className="text-zinc-400 hover:text-emerald-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
