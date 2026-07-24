@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2, Edit } from 'lucide-react'
+import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2, Edit, Copy } from 'lucide-react'
 import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
@@ -29,7 +29,6 @@ export default function Routines() {
 
   const exerciseMap = useMemo(() => buildExerciseMap(exercises), [exercises])
 
-  // Mutación para eliminar rutina
   const deleteMutation = useMutation({
     mutationFn: deleteRoutine,
     onSuccess: () => {
@@ -40,7 +39,6 @@ export default function Routines() {
     }
   })
 
-  // Función para iniciar un día de rutina
   const startRoutineDay = (routine: RoutineWithDays, day: RoutineDayWithExercises) => {
     const resolvedSessionConfig = resolveExerciseConfig(null, routine.config, day.config)
     const shouldStartFresh = !activeSession || activeSession.routine_day_id !== day.id
@@ -78,7 +76,6 @@ export default function Routines() {
     navigate('/workout')
   }
 
-  // Función para compartir rutina
   const handleShare = async (e: React.MouseEvent, routine: RoutineWithDays) => {
     e.stopPropagation()
     const shareUrl = `${window.location.origin}/routines/shared/${routine.id}`
@@ -100,7 +97,35 @@ export default function Routines() {
     }
   }
 
-  // Función para eliminar rutina
+  // ---> NUEVO: Exportar a Texto Plano <---
+  const handleExportText = async (e: React.MouseEvent, routine: RoutineWithDays) => {
+    e.stopPropagation()
+    
+    let text = `🏋️ Rutina: ${routine.name}\n`
+    if (routine.notes) text += `📝 Notas: ${routine.notes}\n`
+    text += `\n`
+
+    const days = routine.routine_days || []
+    days.forEach((day, index) => {
+      text += `📅 ${day.name || `Día ${index + 1}`}\n`
+      const routineExercises = day.routine_exercises || []
+      
+      routineExercises.forEach((ex) => {
+        const baseEx = exerciseMap.get(ex.exercise_id)
+        const exName = baseEx ? baseEx.name : 'Ejercicio Desconocido'
+        text += `  • ${exName}: ${ex.target_sets} series × ${ex.target_reps} reps\n`
+      })
+      text += `\n`
+    })
+
+    try {
+      await navigator.clipboard.writeText(text.trim())
+      alert('¡Rutina copiada en formato texto!')
+    } catch (err) {
+      alert('Error al copiar el texto.')
+    }
+  }
+
   const handleDelete = (e: React.MouseEvent, routineId: string) => {
     e.stopPropagation()
     if (window.confirm('¿Estás seguro de eliminar esta rutina? Esta acción no se puede deshacer.')) {
@@ -134,6 +159,16 @@ export default function Routines() {
                 
                 {/* Agrupamos los botones en un flex */}
                 <div className="flex items-center gap-2">
+                  
+                  {/* Botón de Copiar Texto */}
+                  <button 
+                    onClick={(e) => handleExportText(e, routine)}
+                    className="text-zinc-400 hover:text-white bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
+                    aria-label="Exportar a texto plano"
+                  >
+                    <Copy size={20} />
+                  </button>
+
                   <button 
                     onClick={(e) => { e.stopPropagation(); navigate(`/routines/${routine.id}/edit`); }}
                     className="text-zinc-400 hover:text-blue-500 bg-zinc-800 p-2 rounded-xl transition-colors active:scale-95"
