@@ -218,8 +218,9 @@ export default function Workout() {
       await queryClient.invalidateQueries({ queryKey: ['workout-history'] })
       navigate('/')
     },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : 'Fallo desconocido'
+    onError: (error: any) => {
+      console.error("Detalle crudo del error:", error)
+      const message = error?.message || error?.details || JSON.stringify(error) || 'Fallo desconocido'
       alert(`Error al guardar: ${message}`)
     },
   })
