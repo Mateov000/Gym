@@ -36,4 +36,5 @@ export interface RoutineDayWithExercises extends RoutineDay {
 
 export interface RoutineWithDays extends Routine {
   routine_days: RoutineDayWithExercises[]
+folder?: string | null;
 }
