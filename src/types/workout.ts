@@ -29,6 +29,7 @@ export interface ExerciseConfig {
   available_plates?: number[]
   show_images?: boolean
   show_google_search?: boolean
+sets_config?: { reps: number; weight: number }[]
 }
 
 export interface WorkoutSessionOptions {
