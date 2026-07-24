@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Image as ImageIcon } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell } from 'lucide-react'
 import { fetchExercises, createExercise, updateExercise, deleteExercise } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import type { Exercise } from '../types/workout'
