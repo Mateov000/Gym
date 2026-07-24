@@ -9,6 +9,7 @@ import Workout from './pages/Workout'
 import Feed from './pages/Feed'
 import Exercises from './pages/Exercises'
 import Routines from './pages/Routines'
+import RoutineBuilder from './pages/RoutineBuilder' // <-- Importación agregada
 
 // Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
@@ -48,9 +49,6 @@ export default function App() {
     return <Auth />
   }
 
-  // Eliminamos la ruta <Route path="/auth" /> de abajo porque si no hay sesión, 
-  // el bloque "if (!session)" de arriba ya se encarga de mostrar el Auth.
-
   return (
     <BrowserRouter>
       <Routes>
@@ -64,6 +62,7 @@ export default function App() {
         
         {/* GRUPO 2: Pantallas a pantalla completa (sin barra de navegación) */}
         <Route path="/workout" element={<Workout />} />
+        <Route path="/routines/new" element={<RoutineBuilder />} /> {/* <-- Ruta agregada */}
       </Routes>
     </BrowserRouter>
   )

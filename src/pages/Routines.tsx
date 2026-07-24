@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, CalendarDays, Play } from 'lucide-react'
+import { BookOpen, CalendarDays, Play, Plus } from 'lucide-react'
 import { fetchExercises, fetchRoutines } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
@@ -66,42 +66,44 @@ export default function Routines() {
   }
 
   return (
-    <div className="p-6 pb-24 min-h-screen">
-      <h1 className="text-3xl font-bold text-zinc-100 mb-6">Rutinas</h1>
+    <div className="p-6 pb-24 min-h-screen relative">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-zinc-100">Rutinas</h1>
+      </div>
 
       {isLoading ? (
         <div className="text-center text-zinc-500 mt-10">Cargando rutinas...</div>
       ) : routines.length === 0 ? (
-        <div className="text-center mt-10 bg-zinc-900 border border-zinc-800 p-8 rounded-2xl">
-          <BookOpen className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-          <p className="text-zinc-400">Todavía no hay rutinas creadas.</p>
+        <div className="text-center mt-10 bg-zinc-900 border border-zinc-800 p-8 rounded-2xl flex flex-col items-center">
+          <BookOpen className="w-12 h-12 text-zinc-600 mb-4" />
+          <p className="text-zinc-400 mb-6">Todavía no hay rutinas creadas.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           {routines.map((routine) => (
-            <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+            <div key={routine.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-md">
               <h2 className="text-xl font-bold text-zinc-100">{routine.name}</h2>
-              {routine.notes && <p className="text-sm text-zinc-400 mt-1">{routine.notes}</p>}
+              {routine.notes && <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{routine.notes}</p>}
 
               <div className="mt-4 flex flex-col gap-2">
                 {(routine.routine_days ?? []).map((day) => (
                   <button
                     key={day.id}
                     onClick={() => startRoutineDay(routine, day)}
-                    className="w-full border border-zinc-700 bg-zinc-950 rounded-xl p-3 text-left active:scale-[0.99] transition-transform"
+                    className="w-full border border-zinc-700 bg-zinc-950 rounded-xl p-3 text-left active:scale-[0.99] transition-transform flex flex-col"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2 text-zinc-200">
-                        <CalendarDays size={16} />
+                        <CalendarDays size={16} className="text-zinc-400"/>
                         <span className="font-semibold">{day.name}</span>
                       </div>
-                      <span className="text-xs text-zinc-500">
-                        {(day.routine_exercises ?? []).length} ejercicios
+                      <span className="text-xs font-medium bg-zinc-800 px-2 py-1 rounded-md text-zinc-300">
+                        {(day.routine_exercises ?? []).length} ej.
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-emerald-500">
-                      <Play size={14} />
-                      Empezar día
+                    <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-500 uppercase tracking-wide">
+                      <Play size={12} fill="currentColor" />
+                      Empezar sesión
                     </div>
                   </button>
                 ))}
@@ -110,6 +112,14 @@ export default function Routines() {
           ))}
         </div>
       )}
+
+      {/* Botón flotante para crear rutina (FAB) */}
+      <button 
+        onClick={() => navigate('/routines/new')}
+        className="fixed bottom-24 right-6 bg-emerald-500 text-zinc-950 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-transform z-40"
+      >
+        <Plus size={28} strokeWidth={3} />
+      </button>
     </div>
   )
 }
