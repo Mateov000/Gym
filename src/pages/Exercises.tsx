@@ -1,10 +1,50 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download } from 'lucide-react'
 import { fetchExercises, createExercise, updateExercise, deleteExercise } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import type { Exercise } from '../types/workout'
+
+// ---> NUEVO: Motor que procesa el texto plano a Ejercicios <---
+function parseExercisesText(text: string): Partial<Exercise>[] {
+  const exercises: Partial<Exercise>[] = []
+  // Separamos el texto por bloques usando los dobles saltos de línea
+  const blocks = text.split(/\n\s*\n/)
+
+  for (const block of blocks) {
+    if (!block.trim()) continue
+    const lines = block.split('\n')
+    const ex: Partial<Exercise> = {}
+    let isParsingDesc = false
+
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase()
+      if (lowerLine.startsWith('nombre:')) {
+        ex.name = line.substring(7).trim()
+        isParsingDesc = false
+      } else if (lowerLine.startsWith('grupo:')) {
+        ex.muscle_group = line.substring(6).trim()
+        isParsingDesc = false
+      } else if (lowerLine.startsWith('imagen:')) {
+        ex.image_url = line.substring(7).trim()
+        isParsingDesc = false
+      } else if (lowerLine.startsWith('descripcion:')) {
+        ex.description = line.substring(12).trim()
+        isParsingDesc = true
+      } else if (isParsingDesc) {
+        // Si seguimos dentro de la descripción y hay saltos de línea, los anexamos
+        ex.description = (ex.description || '') + '\n' + line.trim()
+      }
+    }
+    
+    // Solo lo agregamos si al menos detectó un nombre válido
+    if (ex.name) {
+      exercises.push(ex)
+    }
+  }
+  return exercises
+}
 
 export default function Exercises() {
   const navigate = useNavigate()
@@ -17,8 +57,12 @@ export default function Exercises() {
   })
 
   const [search, setSearch] = useState('')
-  const [view, setView] = useState<'list' | 'form'>('list')
+  const [view, setView] = useState<'list' | 'form' | 'import'>('list') // <-- Añadido estado 'import'
   const [editingEx, setEditingEx] = useState<Partial<Exercise> | null>(null)
+  
+  // Estados para la importación
+  const [importText, setImportText] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
 
   // Filtro de búsqueda
   const filteredExercises = useMemo(() => {
@@ -55,11 +99,9 @@ export default function Exercises() {
   // Manejadores
   const handleExerciseClick = (ex: Exercise) => {
     if (activeSession) {
-      // Si hay una sesión activa, al tocarlo lo añadimos al entrenamiento
       addExercise(ex, { set_type: 'normal', default_reps: 10, default_weight: 20 })
       navigate('/workout')
     } else {
-      // Si solo estamos navegando, al tocarlo abrimos el editor
       setEditingEx(ex)
       setView('form')
     }
@@ -69,6 +111,65 @@ export default function Exercises() {
     if (editingEx?.id && window.confirm('¿Eliminar este ejercicio de la base de datos?')) {
       deleteMutation.mutate(editingEx.id)
     }
+  }
+
+  const handleImportSubmit = async () => {
+    setIsImporting(true)
+    try {
+      const parsed = parseExercisesText(importText)
+      if (parsed.length === 0) throw new Error("No se detectó ningún ejercicio válido. Revisa el formato.")
+
+      // Guardamos todos los ejercicios detectados en paralelo
+      await Promise.all(parsed.map(ex => createExercise(ex)))
+
+      await queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
+      alert(`¡Se importaron ${parsed.length} ejercicios con éxito!`)
+      setView('list')
+      setImportText('')
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  // --- VISTA DE IMPORTACIÓN MASIVA ---
+  if (view === 'import') {
+    return (
+      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setView('list')} className="p-2 bg-zinc-900 rounded-xl text-zinc-400">
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold">Importar Ejercicios</h1>
+          <button 
+            onClick={handleImportSubmit} 
+            disabled={isImporting || !importText.trim()}
+            className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"
+          >
+            <Save size={20} />
+          </button>
+        </div>
+
+        <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4">
+          <h2 className="text-sm font-bold text-emerald-500 mb-2">Formato requerido:</h2>
+          <p className="text-xs text-zinc-400 mb-3">Puedes pegar múltiples ejercicios dejando una línea en blanco entre ellos.</p>
+          <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
+{`Nombre: Sentadilla Búlgara
+Grupo: Piernas
+Imagen: https://link-al-gif.com/img.gif
+Descripcion: Mantén el torso recto para enfocar el cuádriceps.`}
+          </pre>
+        </div>
+
+        <textarea 
+          value={importText} 
+          onChange={e => setImportText(e.target.value)}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-100 outline-none focus:border-emerald-500 resize-none h-64 text-sm"
+          placeholder="Pega tus ejercicios aquí..."
+        />
+      </div>
+    )
   }
 
   // --- VISTA DE EDITOR (FORMULARIO) ---
@@ -149,7 +250,20 @@ export default function Exercises() {
   // --- VISTA DE LISTA (CATÁLOGO) ---
   return (
     <div className="p-4 pb-24 min-h-screen text-zinc-100 relative">
-      <h1 className="text-3xl font-bold mb-4">Ejercicios</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-3xl font-bold">Ejercicios</h1>
+        
+        {/* Botón de importar (solo si no estás en medio de un entrenamiento) */}
+        {!activeSession && (
+          <button 
+            onClick={() => setView('import')}
+            className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-emerald-500 transition-colors"
+            aria-label="Importar ejercicios"
+          >
+            <Download size={20} />
+          </button>
+        )}
+      </div>
 
       {activeSession && (
         <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl mb-4 text-sm font-medium text-center">
