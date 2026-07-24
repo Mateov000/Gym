@@ -1,32 +1,51 @@
-# React + TypeScript + Vite
+# Gym PWA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicación mobile-first para seguimiento de entrenamientos, enfocada en fricción cero en gimnasio.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19 + TypeScript + Vite
+- Tailwind CSS
+- Supabase (Auth + PostgreSQL)
+- Zustand (estado de sesión activa con persistencia local)
+- TanStack Query (lecturas/mutaciones contra Supabase)
+- Vite PWA (instalable y cacheable)
 
-## React Compiler
+## Funcionalidad actual
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Registro/Login con Supabase Auth.
+- Catálogo de ejercicios.
+- Inicio y continuidad de sesión activa (persistida localmente).
+- Registro de series con stepper y check-in.
+- Temporizador de descanso y calculadora de discos.
+- Historial básico de sesiones guardadas en Supabase.
+- Quick Swap básico:
+  - Prioriza alternativas explícitas si el ejercicio las incluye.
+  - Fallback por mismo grupo muscular.
+- Smart defaults por ejercicio usando historial reciente.
 
-## Expanding the Oxlint configuration
+## Scripts
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
+npm run lint
+npm run build
+npm run preview
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Variables de entorno
+
+Crear `.env.local` en raíz:
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+## Estructura clave
+
+- `/home/runner/work/Gym/Gym/src/lib/supabase.ts`: cliente Supabase
+- `/home/runner/work/Gym/Gym/src/lib/queries.ts`: capa de acceso de datos
+- `/home/runner/work/Gym/Gym/src/store/useWorkoutStore.ts`: estado local persistente
+- `/home/runner/work/Gym/Gym/src/pages/Workout.tsx`: motor de entrenamiento

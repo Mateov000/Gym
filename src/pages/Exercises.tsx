@@ -1,33 +1,22 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState } from 'react'
 import { Search, Dumbbell, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
+import { useQuery } from '@tanstack/react-query'
+import { fetchExercises } from '../lib/queries'
+import type { Exercise } from '../types/workout'
 
 export default function Exercises() {
-  const [exercises, setExercises] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   
   const navigate = useNavigate()
   // Traemos las herramientas de nuestro cerebro global
   const { activeSession, startSession, addExercise } = useWorkoutStore()
 
-  useEffect(() => {
-    async function fetchExercises() {
-      const { data, error } = await supabase
-        .from('exercises')
-        .select('*')
-        .order('name')
-
-      if (!error && data) {
-        setExercises(data)
-      }
-      setLoading(false)
-    }
-
-    fetchExercises()
-  }, [])
+  const { data: exercises = [], isLoading } = useQuery({
+    queryKey: ['exercises'],
+    queryFn: fetchExercises,
+  })
 
   const filteredExercises = exercises.filter(ex => 
     ex.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -51,13 +40,13 @@ export default function Exercises() {
 
       {/* Lista de Ejercicios */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {isLoading ? (
           <div className="text-center text-zinc-500 mt-10">Cargando catálogo...</div>
         ) : filteredExercises.length === 0 ? (
           <div className="text-center text-zinc-500 mt-10">No se encontraron ejercicios.</div>
         ) : (
           <div className="flex flex-col gap-3">
-            {filteredExercises.map((exercise) => (
+            {filteredExercises.map((exercise: Exercise) => (
               <button 
                 key={exercise.id}
                 onClick={() => {

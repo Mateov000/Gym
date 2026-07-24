@@ -1,27 +1,22 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Exercise, LoggedSet, WorkoutExercise } from '../types/workout'
 
-// Definimos la estructura de nuestros datos
-interface SetLog {
-  weight: number;
-  reps: number;
-}
-
-interface WorkoutExercise {
-  exercise: any; // Aquí guardaremos los datos del catálogo (id, name, muscle_group)
-  sets: SetLog[]; // Las series de ESTE ejercicio en particular
+interface ActiveSession {
+  start_time: string
 }
 
 interface WorkoutStore {
-  activeSession: { start_time: string } | null;
-  isResting: boolean;
-  workoutExercises: WorkoutExercise[]; // <-- Nuestro "carrito de compras"
-  
-  startSession: () => void;
-  addExercise: (exercise: any) => void;
-  addSet: (exerciseId: string, weight: number, reps: number) => void;
-  completeSet: () => void;
-  clearSession: () => void;
+  activeSession: ActiveSession | null
+  isResting: boolean
+  workoutExercises: WorkoutExercise[]
+
+  startSession: () => void
+  addExercise: (exercise: Exercise) => void
+  replaceExercise: (fromExerciseId: string, toExercise: Exercise) => void
+  addSet: (exerciseId: string, weight: number, reps: number) => void
+  completeSet: () => void
+  clearSession: () => void
 }
 
 export const useWorkoutStore = create<WorkoutStore>()(
@@ -48,11 +43,19 @@ export const useWorkoutStore = create<WorkoutStore>()(
         };
       }),
 
+      replaceExercise: (fromExerciseId, toExercise) => set((state) => ({
+        workoutExercises: state.workoutExercises.map((item) =>
+          item.exercise.id === fromExerciseId
+            ? { ...item, exercise: toExercise }
+            : item,
+        ),
+      })),
+
       // Agrega una serie a un ejercicio específico
       addSet: (exerciseId, weight, reps) => set((state) => ({
         workoutExercises: state.workoutExercises.map(item => 
           item.exercise.id === exerciseId 
-            ? { ...item, sets: [...item.sets, { weight, reps }] }
+            ? { ...item, sets: [...item.sets, { weight, reps } as LoggedSet] }
             : item
         )
       })),

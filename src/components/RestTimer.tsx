@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, Plus, Minus } from 'lucide-react'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 
@@ -8,6 +8,7 @@ export default function RestTimer() {
   
   const [timeLeft, setTimeLeft] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null)
 
   // Cuando marcamos una serie, Zustand activa isResting
   useEffect(() => {
@@ -39,6 +40,41 @@ export default function RestTimer() {
     // Apagamos el estado de descanso modificando Zustand directamente
     useWorkoutStore.setState({ isResting: false })
   }
+
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if (!isVisible || timeLeft <= 0 || !('wakeLock' in navigator)) return
+      try {
+        const lock = await (navigator as Navigator & {
+          wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> }
+        }).wakeLock?.request('screen')
+        wakeLockRef.current = lock ?? null
+      } catch {
+        wakeLockRef.current = null
+      }
+    }
+
+    const releaseWakeLock = async () => {
+      if (!wakeLockRef.current) return
+      await wakeLockRef.current.release()
+      wakeLockRef.current = null
+    }
+
+    void requestWakeLock()
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void requestWakeLock()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      void releaseWakeLock()
+    }
+  }, [isVisible, timeLeft])
 
   // Convierte los segundos en formato 01:30
   const formatTime = (seconds: number) => {

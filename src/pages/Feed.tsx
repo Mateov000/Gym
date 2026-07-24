@@ -1,37 +1,20 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { Dumbbell, Calendar, Clock, Play } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore' // 1. Importamos el store
+import { useQuery } from '@tanstack/react-query'
+import { fetchWorkoutHistory } from '../lib/queries'
+import type { WorkoutSessionWithSets } from '../types/workout'
 
 export default function Feed() {
-  const [sessions, setSessions] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   
   // 2. Leemos si hay un entrenamiento activo
   const { activeSession, workoutExercises } = useWorkoutStore()
 
-  useEffect(() => {
-    async function fetchHistory() {
-      const { data, error } = await supabase
-        .from('workout_sessions')
-        .select(`
-          *,
-          workout_sets (*)
-        `)
-        .order('start_time', { ascending: false })
-
-      if (!error && data) {
-        setSessions(data)
-      } else if (error) {
-        console.error("Error cargando historial:", error)
-      }
-      setLoading(false)
-    }
-
-    fetchHistory()
-  }, [])
+  const { data: sessions = [], isLoading } = useQuery<WorkoutSessionWithSets[]>({
+    queryKey: ['workout-history'],
+    queryFn: () => fetchWorkoutHistory(),
+  })
 
   return (
     <div className="p-6 pb-24 min-h-screen flex flex-col">
@@ -57,7 +40,7 @@ export default function Feed() {
       )}
       
       {/* El resto del historial sigue exactamente igual */}
-      {loading ? (
+      {isLoading ? (
         <div className="text-zinc-500 text-center mt-10 animate-pulse">Cargando historial...</div>
       ) : sessions.length === 0 ? (
         <div className="text-center mt-10 bg-zinc-900 border border-zinc-800 p-8 rounded-2xl">
@@ -66,7 +49,7 @@ export default function Feed() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {sessions.map((session) => (
+          {sessions.map((session: WorkoutSessionWithSets) => (
             <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-bold text-zinc-100">Sesión Completada</h3>
