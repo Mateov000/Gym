@@ -340,3 +340,58 @@ export async function cloneRoutine(routineId: string) {
 
   return newRoutine.id
 }
+
+// ---> NUEVO: Editor Visual de Rutinas (Update) <---
+export async function updateRoutine(
+  routineId: string,
+  name: string,
+  notes: string,
+  days: {
+    name: string;
+    day_order: number;
+    exercises: {
+      exercise_id: string;
+      target_sets: number;
+      target_reps: number;
+    }[];
+  }[]
+) {
+  // 1. Actualizar datos básicos de la rutina
+  const { error: updateErr } = await supabase
+    .from('routines')
+    .update({ name, notes })
+    .eq('id', routineId);
+  
+  if (updateErr) throw updateErr;
+
+  // 2. Destrucción táctica: Borramos los días viejos (Supabase borrará los ejercicios en cascada)
+  const { error: delErr } = await supabase
+    .from('routine_days')
+    .delete()
+    .eq('routine_id', routineId);
+
+  if (delErr) throw delErr;
+
+  // 3. Recreación limpia: Insertamos la nueva estructura
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    const { data: newDay, error: dayErr } = await supabase
+      .from('routine_days')
+      .insert({ routine_id: routineId, name: day.name, day_order: day.day_order })
+      .select('id')
+      .single();
+    
+    if (dayErr) throw dayErr;
+
+    if (day.exercises.length > 0) {
+      const exPayload = day.exercises.map((ex) => ({
+        routine_day_id: newDay.id,
+        exercise_id: ex.exercise_id,
+        target_sets: ex.target_sets,
+        target_reps: ex.target_reps,
+      }));
+      const { error: exErr } = await supabase.from('routine_exercises').insert(exPayload);
+      if (exErr) throw exErr;
+    }
+  }
+}
