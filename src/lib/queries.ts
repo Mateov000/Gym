@@ -382,3 +382,32 @@ export async function updateRoutine(
     }
   }
 }
+// ---> NUEVO: CRUD de Ejercicios <---
+export async function createExercise(exerciseData: Partial<Exercise>) {
+  const { data, error } = await supabase
+    .from('exercises')
+    .insert(exerciseData)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateExercise(id: string, exerciseData: Partial<Exercise>) {
+  const { data, error } = await supabase
+    .from('exercises')
+    .update(exerciseData)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteExercise(id: string) {
+  const { error } = await supabase
+    .from('exercises')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
