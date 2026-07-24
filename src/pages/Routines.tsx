@@ -3,7 +3,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query' // <-- Añadidos mutation y queryClient
 import { BookOpen, CalendarDays, Play, Plus, Share2, Trash2 } from 'lucide-react' // <-- Añadido Trash2
-import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries' // <-- Añadido deleteRoutineimport { useWorkoutStore } from '../store/useWorkoutStore'
+import { fetchExercises, fetchRoutines, deleteRoutine } from '../lib/queries' // <-- Añadido deleteRoutine
+import { useWorkoutStore } from '../store/useWorkoutStore'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import type { Exercise } from '../types/workout'
 import type { RoutineDayWithExercises, RoutineWithDays } from '../types/routine'
