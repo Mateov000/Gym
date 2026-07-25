@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware'
 import type { WorkoutSessionOptions, WorkoutExercise, Exercise, LoggedSet } from '../types/workout'
 
 interface WorkoutStore {
-  activeSession: (WorkoutSessionOptions & { start_time: string }) | null
+  activeSession: (WorkoutSessionOptions & { start_time: string; name?: string }) | null
   workoutExercises: WorkoutExercise[]
   restEndsAt: number | null
   isResting: boolean 
   startSession: (options: WorkoutSessionOptions) => void
-  startRoutine: (routine: any, day: any) => void // <-- NUEVO: Función para iniciar rutinas
+  startRoutine: (routine: any, day: any) => void
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
   replaceExercise: (oldExerciseId: string, newExercise: Exercise) => void
   removeExercise: (exerciseId: string) => void
@@ -37,21 +37,24 @@ export const useWorkoutStore = create<WorkoutStore>()(
           isResting: false,
         }),
 
-      // ---> NUEVO: Lógica para cargar una rutina armada en el entrenamiento <---
       startRoutine: (routine, day) =>
         set(() => {
-          // Soportamos las dos formas en que puede venir la info de la base de datos
           const rawExercises = day.routine_exercises || day.exercises || []
           
           const loadedExercises = rawExercises.map((rx: any) => {
-            const exercise = rx.exercise || rx
-            // Buscamos las reps objetivo configuradas (o ponemos 10 por defecto)
+            const baseExercise = rx.exercise || rx
+            // Normalizamos el ID para que nunca sea undefined
+            const realId = baseExercise.id || baseExercise.exercise_id || rx.exercise_id
             const targetReps = rx.target_reps || rx.config?.sets_config?.[0]?.reps || 10
             
             return {
-              exercise,
+              exercise: {
+                ...baseExercise,
+                id: realId,
+              },
               sets: [],
               meta: {
+                routine_exercise_id: rx.id || rx.routine_exercise_id,
                 set_type: 'normal',
                 default_reps: targetReps,
                 default_weight: 0
@@ -60,9 +63,10 @@ export const useWorkoutStore = create<WorkoutStore>()(
           })
 
           return {
-            // Nombramos la sesión con el formato "Rutina - Día"
             activeSession: { 
               name: `${routine.name} - ${day.name}`,
+              routine_id: routine.id,
+              routine_day_id: day.id,
               start_time: new Date().toISOString() 
             },
             workoutExercises: loadedExercises,
