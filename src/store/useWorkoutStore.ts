@@ -1,120 +1,112 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Exercise, LoggedSet, WorkoutExercise, WorkoutSessionOptions } from '../types/workout'
-
-interface ActiveSession {
-  start_time: string
-  routine_id?: string | null
-  routine_day_id?: string | null
-  disable_prs?: boolean
-  config?: WorkoutSessionOptions['config']
-}
+import type { WorkoutSessionOptions, WorkoutExercise, Exercise, LoggedSet } from '../types/workout'
 
 interface WorkoutStore {
-  activeSession: ActiveSession | null
-  isResting: boolean
-  restEndsAt: string | null
+  activeSession: (WorkoutSessionOptions & { start_time: string }) | null
   workoutExercises: WorkoutExercise[]
-
-  startSession: (options?: WorkoutSessionOptions) => void
+  restEndsAt: number | null
+  startSession: (options: WorkoutSessionOptions) => void
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
-  replaceExercise: (fromExerciseId: string, toExercise: Exercise) => void
-  addSet: (
-    exerciseId: string,
-    weight: number,
-    reps: number,
-    setMeta?: Omit<LoggedSet, 'weight' | 'reps'>,
-  ) => void
-  completeSet: (restSeconds?: number) => void
-  stopRest: () => void
+  replaceExercise: (oldExerciseId: string, newExercise: Exercise) => void
+  removeExercise: (exerciseId: string) => void
+  addSet: (exerciseId: string, weight: number, reps: number, meta?: Partial<LoggedSet>) => void
+  completeSet: (restTimeSeconds?: number) => void
+  removeSet: (exerciseId: string, setIndex: number) => void
+  updateSet: (exerciseId: string, setIndex: number, weight: number, reps: number) => void // <-- NUEVA FUNCIÓN
+  clearRestTimer: () => void
   clearSession: () => void
-  removeSet: (exerciseId: string, setIndex: number) => void;
 }
 
 export const useWorkoutStore = create<WorkoutStore>()(
   persist(
     (set) => ({
       activeSession: null,
-      isResting: false,
-      restEndsAt: null,
       workoutExercises: [],
+      restEndsAt: null,
 
-      // Inicia una sesión limpia
-      startSession: (options) => set({
-        activeSession: {
-          start_time: new Date().toISOString(),
-          routine_id: options?.routine_id ?? null,
-          routine_day_id: options?.routine_day_id ?? null,
-          disable_prs: options?.disable_prs ?? false,
-          config: options?.config ?? null,
-        },
-        workoutExercises: [] 
-      }),
+      startSession: (options) =>
+        set({
+          activeSession: { ...options, start_time: new Date().toISOString() },
+          workoutExercises: [],
+          restEndsAt: null,
+        }),
 
-      // Agrega un ejercicio nuevo al entrenamiento
-      addExercise: (exercise, meta) => set((state) => {
-        // Verificamos que no esté ya en la lista para no duplicarlo
-        const exists = state.workoutExercises.find((item) => {
-          if (meta?.routine_exercise_id && item.meta?.routine_exercise_id) {
-            return item.meta.routine_exercise_id === meta.routine_exercise_id
-          }
-          return item.exercise.id === exercise.id
-        })
-        if (exists) return state;
-        
-        return { 
-          workoutExercises: [...state.workoutExercises, { exercise, sets: [], meta }] 
-        };
-      }),
+      addExercise: (exercise, meta) =>
+        set((state) => ({
+          workoutExercises: [
+            ...state.workoutExercises,
+            { exercise, sets: [], meta },
+          ],
+        })),
 
-      replaceExercise: (fromExerciseId, toExercise) => set((state) => ({
-        workoutExercises: state.workoutExercises.map((item) =>
-          item.exercise.id === fromExerciseId
-            ? { ...item, exercise: toExercise }
-            : item,
-        ),
-      })),
+      replaceExercise: (oldId, newExercise) =>
+        set((state) => ({
+          workoutExercises: state.workoutExercises.map((ex) =>
+            ex.exercise.id === oldId
+              ? { ...ex, exercise: newExercise }
+              : ex
+          ),
+        })),
 
-      // Agrega una serie a un ejercicio específico
-      addSet: (exerciseId, weight, reps, setMeta) => set((state) => ({
-        workoutExercises: state.workoutExercises.map(item => 
-          item.exercise.id === exerciseId 
-            ? { ...item, sets: [...item.sets, { weight, reps, ...setMeta } as LoggedSet] }
-            : item
-        )
-      })),
+      removeExercise: (exerciseId) =>
+        set((state) => ({
+          workoutExercises: state.workoutExercises.filter(
+            (ex) => ex.exercise.id !== exerciseId
+          ),
+        })),
 
-      // Activa el temporizador
-      completeSet: (restSeconds = 90) => set({
-        isResting: true,
-        restEndsAt: new Date(Date.now() + restSeconds * 1000).toISOString(),
-      }),
+      addSet: (exerciseId, weight, reps, meta) =>
+        set((state) => {
+          const updated = state.workoutExercises.map((ex) => {
+            if (ex.exercise.id === exerciseId) {
+              return {
+                ...ex,
+                sets: [...ex.sets, { weight, reps, ...meta } as LoggedSet],
+              }
+            }
+            return ex
+          })
+          return { workoutExercises: updated }
+        }),
 
-      stopRest: () => set({
-        isResting: false,
-        restEndsAt: null,
-      }),
+      completeSet: (restTimeSeconds = 90) =>
+        set({ restEndsAt: Date.now() + restTimeSeconds * 1000 }),
 
-      // Limpia todo al terminar
-      clearSession: () => set({ 
-        activeSession: null, 
-        isResting: false, 
-        restEndsAt: null,
-        workoutExercises: [] 
-      }),
+      removeSet: (exerciseId, setIndex) =>
+        set((state) => {
+          const updated = state.workoutExercises.map((ex) => {
+            if (ex.exercise.id === exerciseId) {
+              const newSets = [...ex.sets]
+              newSets.splice(setIndex, 1)
+              return { ...ex, sets: newSets }
+            }
+            return ex
+          })
+          return { workoutExercises: updated }
+        }),
 
-      removeSet: (exerciseId, setIndex) => set((state) => {
-        const updatedExercises = state.workoutExercises.map(ex => {
-          if (ex.exercise.id === exerciseId) {
-            const newSets = [...ex.sets];
-            newSets.splice(setIndex, 1); // Borramos esa serie específica
-            return { ...ex, sets: newSets };
-          }
-          return ex;
-        });
-        return { workoutExercises: updatedExercises };
-      }),
+      // ---> NUEVA LÓGICA DE EDICIÓN <---
+      updateSet: (exerciseId, setIndex, weight, reps) =>
+        set((state) => {
+          const updated = state.workoutExercises.map((ex) => {
+            if (ex.exercise.id === exerciseId) {
+              const newSets = [...ex.sets]
+              newSets[setIndex] = { ...newSets[setIndex], weight, reps }
+              return { ...ex, sets: newSets }
+            }
+            return ex
+          })
+          return { workoutExercises: updated }
+        }),
+
+      clearRestTimer: () => set({ restEndsAt: null }),
+
+      clearSession: () =>
+        set({ activeSession: null, workoutExercises: [], restEndsAt: null }),
     }),
-    { name: 'workout-storage' }
+    {
+      name: 'workout-storage',
+    }
   )
 )

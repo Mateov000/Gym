@@ -10,7 +10,59 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2 } from 'lucide-react' // <-- Icono de basura
+import { Trash2, Save } from 'lucide-react'
+
+// ---> NUEVO: Componente para editar la serie en vivo <---
+function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet }: any) {
+  const [weight, setWeight] = useState(set.weight)
+  const [reps, setReps] = useState(set.reps)
+  const [isEdited, setIsEdited] = useState(false)
+
+  // Si la serie cambia por otra razón, sincronizamos el input
+  useEffect(() => {
+    setWeight(set.weight)
+    setReps(set.reps)
+    setIsEdited(false)
+  }, [set.weight, set.reps])
+
+  const handleSave = () => {
+    updateSet(exerciseId, index, weight, reps)
+    setIsEdited(false)
+  }
+
+  return (
+    <div className="flex justify-between items-center bg-zinc-950 px-3 py-3 rounded-xl text-sm border border-zinc-800/50">
+      <span className="text-zinc-500 font-medium whitespace-nowrap">Serie {index + 1}</span>
+      <div className="flex items-center gap-1.5 ml-auto">
+        <input 
+          type="number" 
+          value={weight} 
+          onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} 
+          className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" 
+        />
+        <span className="text-zinc-500 text-xs">kg</span>
+        <span className="text-zinc-600">×</span>
+        <input 
+          type="number" 
+          value={reps} 
+          onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} 
+          className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" 
+        />
+        <span className="text-zinc-500 text-xs">reps</span>
+        
+        {isEdited ? (
+          <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95 transition-transform">
+            <Save size={16}/>
+          </button>
+        ) : (
+          <button onClick={() => removeSet(exerciseId, index)} className="ml-2 text-red-500 hover:text-red-400 p-2 bg-red-500/10 rounded-lg transition-colors active:scale-95">
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 interface ExerciseTrackerProps {
   workoutEx: WorkoutExercise
@@ -25,7 +77,7 @@ const ExerciseTracker = ({
   swapCandidates,
   onSwapExercise,
 }: ExerciseTrackerProps) => {
-  const { addSet, completeSet, removeSet } = useWorkoutStore()
+  const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
   
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
@@ -82,20 +134,14 @@ const ExerciseTracker = ({
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
           {sets.map((set, idx) => (
-            <div key={idx} className="flex justify-between items-center bg-zinc-950 px-4 py-3 rounded-xl text-sm border border-zinc-800/50">
-              <span className="text-zinc-500 font-medium">Serie {idx + 1}</span>
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-zinc-100">{set.weight}kg × {set.reps} reps</span>
-                {/* ---> NUEVO: Botón para borrar una serie equivocada <--- */}
-                <button 
-                  onClick={() => removeSet(exercise.id, idx)} 
-                  className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 rounded-lg transition-colors active:scale-95"
-                  aria-label="Borrar serie"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+            <ActiveSetRow 
+              key={idx} 
+              exerciseId={exercise.id} 
+              set={set} 
+              index={idx} 
+              updateSet={updateSet} 
+              removeSet={removeSet} 
+            />
           ))}
         </div>
       )}
@@ -197,7 +243,6 @@ export default function Workout() {
     finishWorkoutMutation.mutate()
   }
 
-  // ---> NUEVO: Abandonar entrenamiento <---
   const handleAbandon = () => {
     if (window.confirm('¿Estás seguro de abandonar este entrenamiento? Se perderán todas las series registradas hoy y no se guardará en tu historial.')) {
       clearSession()
@@ -226,12 +271,10 @@ export default function Workout() {
           + Añadir otro ejercicio
         </button>
 
-        {/* Botón de terminar (Verde) */}
         <button onClick={handleFinishWorkout} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform mt-4">
           {finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}
         </button>
 
-        {/* Botón de abandonar (Rojo) */}
         <button onClick={handleAbandon} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform">
           Abandonar Entrenamiento
         </button>
