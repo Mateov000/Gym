@@ -6,6 +6,7 @@ interface WorkoutStore {
   activeSession: (WorkoutSessionOptions & { start_time: string }) | null
   workoutExercises: WorkoutExercise[]
   restEndsAt: number | null
+  isResting: boolean // <-- RESTAURADO
   startSession: (options: WorkoutSessionOptions) => void
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
   replaceExercise: (oldExerciseId: string, newExercise: Exercise) => void
@@ -13,7 +14,8 @@ interface WorkoutStore {
   addSet: (exerciseId: string, weight: number, reps: number, meta?: Partial<LoggedSet>) => void
   completeSet: (restTimeSeconds?: number) => void
   removeSet: (exerciseId: string, setIndex: number) => void
-  updateSet: (exerciseId: string, setIndex: number, weight: number, reps: number) => void // <-- NUEVA FUNCIÓN
+  updateSet: (exerciseId: string, setIndex: number, weight: number, reps: number) => void
+  stopRest: () => void // <-- RESTAURADO
   clearRestTimer: () => void
   clearSession: () => void
 }
@@ -24,12 +26,14 @@ export const useWorkoutStore = create<WorkoutStore>()(
       activeSession: null,
       workoutExercises: [],
       restEndsAt: null,
+      isResting: false, // <-- RESTAURADO
 
       startSession: (options) =>
         set({
           activeSession: { ...options, start_time: new Date().toISOString() },
           workoutExercises: [],
           restEndsAt: null,
+          isResting: false,
         }),
 
       addExercise: (exercise, meta) =>
@@ -71,7 +75,10 @@ export const useWorkoutStore = create<WorkoutStore>()(
         }),
 
       completeSet: (restTimeSeconds = 90) =>
-        set({ restEndsAt: Date.now() + restTimeSeconds * 1000 }),
+        set({ 
+          restEndsAt: Date.now() + restTimeSeconds * 1000,
+          isResting: true // <-- RESTAURADO
+        }),
 
       removeSet: (exerciseId, setIndex) =>
         set((state) => {
@@ -86,7 +93,6 @@ export const useWorkoutStore = create<WorkoutStore>()(
           return { workoutExercises: updated }
         }),
 
-      // ---> NUEVA LÓGICA DE EDICIÓN <---
       updateSet: (exerciseId, setIndex, weight, reps) =>
         set((state) => {
           const updated = state.workoutExercises.map((ex) => {
@@ -100,10 +106,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
           return { workoutExercises: updated }
         }),
 
-      clearRestTimer: () => set({ restEndsAt: null }),
+      stopRest: () => set({ isResting: false, restEndsAt: null }), // <-- RESTAURADO
+      clearRestTimer: () => set({ isResting: false, restEndsAt: null }),
 
       clearSession: () =>
-        set({ activeSession: null, workoutExercises: [], restEndsAt: null }),
+        set({ activeSession: null, workoutExercises: [], restEndsAt: null, isResting: false }),
     }),
     {
       name: 'workout-storage',
