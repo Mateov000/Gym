@@ -71,6 +71,7 @@ export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWit
       routine_id,
       routine_day_id,
       workout_sets (
+        id,
         exercise_id,
         routine_exercise_id,
         weight,
@@ -476,4 +477,41 @@ export async function createStructuredRoutine(
   }
 
   return routine.id
+}
+
+// ==========================================
+// 4. EDICIÓN Y BORRADO DE HISTORIAL
+// ==========================================
+export async function fetchSessionById(id: string): Promise<WorkoutSessionWithSets | null> {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select(`
+      id, start_time, routine_id, routine_day_id,
+      workout_sets ( id, exercise_id, routine_exercise_id, weight, reps, is_completed )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
+  return data as WorkoutSessionWithSets
+}
+
+export async function deleteWorkoutSession(sessionId: string) {
+  // Borramos las series primero por si la DB no tiene configurado el borrado en cascada
+  await supabase.from('workout_sets').delete().eq('session_id', sessionId)
+  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
+  if (error) throw error
+}
+
+export async function updateWorkoutSet(setId: string, weight: number, reps: number) {
+  const { error } = await supabase.from('workout_sets').update({ weight, reps }).eq('id', setId)
+  if (error) throw error
+}
+
+export async function deleteWorkoutSet(setId: string) {
+  const { error } = await supabase.from('workout_sets').delete().eq('id', setId)
+  if (error) throw error
 }

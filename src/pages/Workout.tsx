@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
+import { Trash2 } from 'lucide-react' // <-- Icono de basura
 
 interface ExerciseTrackerProps {
   workoutEx: WorkoutExercise
@@ -24,19 +25,14 @@ const ExerciseTracker = ({
   swapCandidates,
   onSwapExercise,
 }: ExerciseTrackerProps) => {
-  const { addSet, completeSet } = useWorkoutStore()
+  const { addSet, completeSet, removeSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
   
-  // Resolvemos la configuración consolidada (Ejercicio -> Rutina -> Global)
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
-  
   const currentSetIndex = sets.length
 
-  // Buscamos si hay un historial para ESTA serie exacta en ESTA rutina
   const routineSpecificDefault = defaultsMap.get(`${workoutEx.meta?.routine_exercise_id}-set-${currentSetIndex}`)
-  // Buscamos si la rutina traía un peso/reps predefinido por código de texto
   const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
-  // Buscamos el último peso global del ejercicio (fallback)
   const globalDefault = defaultsMap.get(`global-${exercise.id}`)
 
   const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20)
@@ -44,22 +40,17 @@ const ExerciseTracker = ({
   const [isCompleted, setIsCompleted] = useState(false)
   const [showSwapList, setShowSwapList] = useState(false)
 
-  // Magia: Cada vez que terminas una serie y pasas a la siguiente, actualizamos los números automáticamente
   useEffect(() => {
     if (routineSpecificDefault) {
-      // Prioridad 1: Tu propio historial real haciendo esta rutina la última vez
       setWeight(routineSpecificDefault.weight)
       setReps(routineSpecificDefault.reps)
     } else if (predefinedSet) {
-      // Prioridad 2: Lo que definiste en el importador de texto/IA (Ej: 8x20)
       setWeight(predefinedSet.weight)
       setReps(predefinedSet.reps)
     } else if (globalDefault && currentSetIndex === 0) {
-      // Prioridad 3: Fallback a un entrenamiento de otra rutina (Solo para arrancar la Serie 1)
       setWeight(globalDefault.weight)
       setReps(globalDefault.reps)
     }
-    // Si no hay default específico y no es la primera serie, mantenemos el valor de la serie anterior
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
 
   const handleCheckIn = () => {
@@ -81,21 +72,8 @@ const ExerciseTracker = ({
         <div>
           <h2 className="text-xl font-bold text-emerald-500">{exercise.name}</h2>
           <div className="flex gap-2 mt-1">
-            {workoutEx.meta?.superset_id && (
-              <span className="text-[10px] uppercase tracking-wide bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-0.5">
-                Superset
-              </span>
-            )}
-            {workoutEx.meta?.set_type === 'drop_set' && (
-              <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">
-                Drop set
-              </span>
-            )}
-            {workoutEx.meta?.pr_mode === 'opt_out' && (
-              <span className="text-[10px] uppercase tracking-wide bg-zinc-700/40 text-zinc-300 border border-zinc-600 rounded px-2 py-0.5">
-                PR Off
-              </span>
-            )}
+            {workoutEx.meta?.superset_id && <span className="text-[10px] uppercase tracking-wide bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-0.5">Superset</span>}
+            {workoutEx.meta?.set_type === 'drop_set' && <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">Drop set</span>}
           </div>
         </div>
         <span className="text-sm text-zinc-400 font-bold">{sets.length} series</span>
@@ -104,30 +82,27 @@ const ExerciseTracker = ({
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
           {sets.map((set, idx) => (
-            <div key={idx} className="flex justify-between bg-zinc-950 px-4 py-3 rounded-xl text-sm border border-zinc-800/50">
+            <div key={idx} className="flex justify-between items-center bg-zinc-950 px-4 py-3 rounded-xl text-sm border border-zinc-800/50">
               <span className="text-zinc-500 font-medium">Serie {idx + 1}</span>
-              <span className="font-bold text-zinc-100">{set.weight}kg × {set.reps} reps</span>
+              <div className="flex items-center gap-4">
+                <span className="font-bold text-zinc-100">{set.weight}kg × {set.reps} reps</span>
+                {/* ---> NUEVO: Botón para borrar una serie equivocada <--- */}
+                <button 
+                  onClick={() => removeSet(exercise.id, idx)} 
+                  className="text-red-500 hover:text-red-400 p-1.5 bg-red-500/10 rounded-lg transition-colors active:scale-95"
+                  aria-label="Borrar serie"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Controles Dinámicos */}
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <SmartStepper
-          label={`Peso (Serie ${currentSetIndex + 1})`}
-          value={weight}
-          step={resolvedConfig.stepper_increment}
-          unit={resolvedConfig.weight_unit}
-          onChange={setWeight}
-        />
-        <SmartStepper 
-          label={`Reps (Serie ${currentSetIndex + 1})`} 
-          value={reps} 
-          step={1} 
-          unit="reps" 
-          onChange={setReps} 
-        />
+        <SmartStepper label={`Peso (Serie ${currentSetIndex + 1})`} value={weight} step={resolvedConfig.stepper_increment} unit={resolvedConfig.weight_unit} onChange={setWeight} />
+        <SmartStepper label={`Reps (Serie ${currentSetIndex + 1})`} value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
       
       <PlateMath weight={weight} />
@@ -137,31 +112,16 @@ const ExerciseTracker = ({
       </div>
 
       <div className="mt-4 border-t border-zinc-800 pt-4">
-        <button
-          onClick={() => setShowSwapList((prev) => !prev)}
-          className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700 active:scale-95 transition-transform"
-        >
+        <button onClick={() => setShowSwapList((prev) => !prev)} className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700 active:scale-95 transition-transform">
           Quick Swap
         </button>
-
         {showSwapList && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {swapCandidates.length === 0 ? (
-              <span className="text-xs text-zinc-500">No hay alternativas disponibles.</span>
-            ) : (
-              swapCandidates.slice(0, 5).map((candidate) => (
-                <button
-                  key={candidate.id}
-                  onClick={() => {
-                    onSwapExercise(candidate)
-                    setShowSwapList(false)
-                  }}
-                  className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700"
-                >
-                  {candidate.name}
-                </button>
-              ))
-            )}
+            {swapCandidates.length === 0 ? <span className="text-xs text-zinc-500">No hay alternativas.</span> : swapCandidates.slice(0, 5).map((candidate) => (
+              <button key={candidate.id} onClick={() => { onSwapExercise(candidate); setShowSwapList(false) }} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700">
+                {candidate.name}
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -169,55 +129,39 @@ const ExerciseTracker = ({
   )
 }
 
-// ---> Motor Inteligente Contextual <---
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
   const defaults = new Map<string, { weight: number; reps: number }>()
-
-  // 1. Primero buscamos el historial EXACTO de esta rutina
   if (routineDayId) {
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
       const setCounters = new Map<string, number>()
-      
       for (const set of lastRoutineSession.workout_sets) {
         if (set.routine_exercise_id) {
           const idx = setCounters.get(set.routine_exercise_id) || 0
-          // Guardamos el peso exacto para la "Serie 0", "Serie 1", etc.
           defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps })
           setCounters.set(set.routine_exercise_id, idx + 1)
         }
       }
     }
   }
-
-  // 2. Fallback: Último peso levantado en cualquier circunstancia
   for (const session of sessions) {
     for (const set of (session.workout_sets || [])) {
-      if (!defaults.has(`global-${set.exercise_id}`)) {
-        defaults.set(`global-${set.exercise_id}`, { weight: set.weight, reps: set.reps })
-      }
+      if (!defaults.has(`global-${set.exercise_id}`)) defaults.set(`global-${set.exercise_id}`, { weight: set.weight, reps: set.reps })
     }
   }
-
   return defaults
 }
 
 function getExplicitAlternatives(exercise: Exercise, catalog: Exercise[]) {
-  const byEmbeddedAlternatives = exercise.alternatives ?? []
   const byIds = new Set(exercise.alternative_exercise_ids ?? [])
   const byCatalogIds = catalog.filter((item) => byIds.has(item.id))
-  return [...byEmbeddedAlternatives, ...byCatalogIds].filter((candidate) => candidate.id !== exercise.id)
+  return [...(exercise.alternatives ?? []), ...byCatalogIds].filter((candidate) => candidate.id !== exercise.id)
 }
 
 function getSwapCandidates(exercise: Exercise, catalog: Exercise[]) {
   const explicit = getExplicitAlternatives(exercise, catalog)
   if (explicit.length > 0) return explicit
-  return catalog.filter(
-    (candidate) =>
-      candidate.id !== exercise.id &&
-      candidate.muscle_group &&
-      candidate.muscle_group === exercise.muscle_group,
-  )
+  return catalog.filter((candidate) => candidate.id !== exercise.id && candidate.muscle_group && candidate.muscle_group === exercise.muscle_group)
 }
 
 export default function Workout() {
@@ -227,21 +171,9 @@ export default function Workout() {
 
   useWakeLock(!!activeSession)
 
-  const { data: recentSessions = [] } = useQuery({
-    queryKey: ['workout-history', 'smart-defaults'],
-    queryFn: () => fetchWorkoutHistory(20),
-  })
-
-  const { data: allExercises = [] } = useQuery({
-    queryKey: ['exercises', 'quick-swap'],
-    queryFn: fetchExercises,
-  })
-
-  // Alimentamos el motor inteligente
-  const defaultsMap = useMemo(
-    () => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null),
-    [recentSessions, activeSession?.routine_day_id],
-  )
+  const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
+  const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'quick-swap'], queryFn: fetchExercises })
+  const defaultsMap = useMemo(() => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null), [recentSessions, activeSession?.routine_day_id])
 
   const finishWorkoutMutation = useMutation({
     mutationFn: async () => {
@@ -249,12 +181,7 @@ export default function Workout() {
       await finishWorkoutSession({
         startTime: activeSession.start_time,
         workoutExercises,
-        sessionOptions: {
-          routine_id: activeSession.routine_id,
-          routine_day_id: activeSession.routine_day_id,
-          disable_prs: activeSession.disable_prs,
-          config: activeSession.config,
-        },
+        sessionOptions: { routine_id: activeSession.routine_id, routine_day_id: activeSession.routine_day_id, disable_prs: activeSession.disable_prs, config: activeSession.config },
       })
     },
     onSuccess: async () => {
@@ -262,10 +189,7 @@ export default function Workout() {
       await queryClient.invalidateQueries({ queryKey: ['workout-history'] })
       navigate('/')
     },
-    onError: (error: any) => {
-      const message = error?.message || error?.details || 'Fallo desconocido'
-      alert(`Error al guardar: ${message}`)
-    },
+    onError: (error: any) => alert(`Error al guardar: ${error.message}`),
   })
 
   const handleFinishWorkout = () => {
@@ -273,9 +197,15 @@ export default function Workout() {
     finishWorkoutMutation.mutate()
   }
 
-  if (!activeSession) {
-    return <Navigate to="/exercises" replace />
+  // ---> NUEVO: Abandonar entrenamiento <---
+  const handleAbandon = () => {
+    if (window.confirm('¿Estás seguro de abandonar este entrenamiento? Se perderán todas las series registradas hoy y no se guardará en tu historial.')) {
+      clearSession()
+      navigate('/')
+    }
   }
+
+  if (!activeSession) return <Navigate to="/exercises" replace />
 
   return (
     <div className="p-4 relative min-h-[80vh] pb-32">
@@ -287,30 +217,23 @@ export default function Workout() {
         <div className="text-center text-zinc-500 my-10">Agrega ejercicios desde el catálogo.</div>
       ) : (
         workoutExercises.map((workoutEx, index) => (
-          <ExerciseTracker
-            key={`${workoutEx.exercise.id}-${index}`}
-            workoutEx={workoutEx}
-            defaultsMap={defaultsMap}
-            swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)}
-            onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)}
-          />
+          <ExerciseTracker key={`${workoutEx.exercise.id}-${index}`} workoutEx={workoutEx} defaultsMap={defaultsMap} swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)} />
         ))
       )}
 
       <div className="flex flex-col gap-3 mt-8">
-        <button 
-          onClick={() => navigate('/exercises')}
-          className="w-full bg-zinc-900 border border-zinc-800 text-emerald-500 font-bold p-4 rounded-xl active:bg-zinc-800 transition-colors"
-        >
+        <button onClick={() => navigate('/exercises')} className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold p-4 rounded-xl active:bg-zinc-800 transition-colors">
           + Añadir otro ejercicio
         </button>
 
-        <button 
-          onClick={handleFinishWorkout}
-          disabled={finishWorkoutMutation.isPending}
-          className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform"
-        >
+        {/* Botón de terminar (Verde) */}
+        <button onClick={handleFinishWorkout} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform mt-4">
           {finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}
+        </button>
+
+        {/* Botón de abandonar (Rojo) */}
+        <button onClick={handleAbandon} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform">
+          Abandonar Entrenamiento
         </button>
       </div>
 

@@ -58,6 +58,7 @@ export interface WorkoutExercise {
 
 // ---> ACTUALIZADO: Agregamos routine_exercise_id <---
 export interface PersistedWorkoutSet {
+  id?: string
   exercise_id: string
   routine_exercise_id?: string | null
   weight: number

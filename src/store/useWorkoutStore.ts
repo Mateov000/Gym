@@ -28,6 +28,7 @@ interface WorkoutStore {
   completeSet: (restSeconds?: number) => void
   stopRest: () => void
   clearSession: () => void
+  removeSet: (exerciseId: string, setIndex: number) => void;
 }
 
 export const useWorkoutStore = create<WorkoutStore>()(
@@ -101,6 +102,18 @@ export const useWorkoutStore = create<WorkoutStore>()(
         restEndsAt: null,
         workoutExercises: [] 
       })
+
+      removeSet: (exerciseId, setIndex) => set((state) => {
+        const updatedExercises = state.workoutExercises.map(ex => {
+          if (ex.exercise.id === exerciseId) {
+            const newSets = [...ex.sets];
+            newSets.splice(setIndex, 1); // Borramos esa serie específica
+            return { ...ex, sets: newSets };
+          }
+          return ex;
+        });
+        return { workoutExercises: updatedExercises };
+      }),
     }),
     { name: 'workout-storage' }
   )

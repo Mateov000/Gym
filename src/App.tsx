@@ -12,6 +12,8 @@ import Routines from './pages/Routines'
 import RoutineBuilder from './pages/RoutineBuilder'
 import SharedRoutine from './pages/SharedRoutine'
 import RoutineEditor from './pages/RoutineEditor' // <-- IMPORTACIÓN DEL EDITOR
+import SessionEditor from './pages/SessionEditor'
+
 
 // Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
@@ -67,6 +69,7 @@ export default function App() {
         <Route path="/routines/new" element={<RoutineBuilder />} />
         <Route path="/routines/shared/:id" element={<SharedRoutine />} />
         <Route path="/routines/:id/edit" element={<RoutineEditor />} /> {/* <-- NUEVA RUTA DEL EDITOR */}
+        <Route path="/session/:id/edit" element={<SessionEditor />} />
       </Routes>
     </BrowserRouter>
   )

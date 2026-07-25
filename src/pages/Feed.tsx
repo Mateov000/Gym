@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { Dumbbell, Calendar, Clock, Play } from 'lucide-react'
+import { Dumbbell, Calendar, Clock, Play, Edit2 } from 'lucide-react' // Importamos Edit2
 import { useNavigate } from 'react-router-dom'
-import { useWorkoutStore } from '../store/useWorkoutStore' // 1. Importamos el store
+import { useWorkoutStore } from '../store/useWorkoutStore'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWorkoutHistory } from '../lib/queries'
 import type { WorkoutSessionWithSets } from '../types/workout'
@@ -9,7 +9,6 @@ import type { WorkoutSessionWithSets } from '../types/workout'
 export default function Feed() {
   const navigate = useNavigate()
   
-  // 2. Leemos si hay un entrenamiento activo
   const { activeSession, workoutExercises } = useWorkoutStore()
 
   const { data: sessions = [], isLoading } = useQuery<WorkoutSessionWithSets[]>({
@@ -34,7 +33,6 @@ export default function Feed() {
     <div className="p-6 pb-24 min-h-screen flex flex-col">
       <h1 className="text-3xl font-bold text-zinc-100 mb-6">Tu Progreso</h1>
       
-      {/* 3. Lógica Condicional del Botón Principal */}
       {activeSession ? (
         <button 
           onClick={() => navigate('/workout')}
@@ -53,7 +51,6 @@ export default function Feed() {
         </button>
       )}
       
-      {/* El resto del historial sigue exactamente igual */}
       {isLoading ? (
         <div className="text-zinc-500 text-center mt-10 animate-pulse">Cargando historial...</div>
       ) : sessions.length === 0 ? (
@@ -67,9 +64,22 @@ export default function Feed() {
             <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-bold text-zinc-100">Sesión Completada</h3>
-                <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md text-xs font-bold border border-emerald-500/20">
-                  {session.workout_sets?.length || 0} series
-                </span>
+                
+                {/* Contenedor del badge de series y el botón de editar */}
+                <div className="flex items-center gap-2">
+                  <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md text-xs font-bold border border-emerald-500/20">
+                    {session.workout_sets?.length || 0} series
+                  </span>
+                  
+                  {/* ---> NUEVO: Botón de Editar Entrenamiento <--- */}
+                  <button 
+                    onClick={() => navigate(`/session/${session.id}/edit`)}
+                    className="text-zinc-400 hover:text-emerald-500 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800 transition-colors active:scale-95"
+                    aria-label="Editar entrenamiento"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                </div>
               </div>
               
               <div className="flex items-center gap-4 text-sm text-zinc-400">
