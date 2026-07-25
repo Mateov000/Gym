@@ -22,8 +22,13 @@ interface ParsedRoutine {
   folder: string
   notes: string
   days: ParsedDay[]
-  errors: string[] // Guardamos errores para avisarle al usuario
+  errors: string[]
 }
+
+// ---> NUEVO: Helper súper inteligente para comparar nombres de ejercicios <---
+// Transforma "Press de Bíceps  " a "press de biceps" (quita tildes, espacios extra y mayúsculas)
+const normalize = (str: string) => 
+  str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
 
 export default function RoutineBuilder() {
   const navigate = useNavigate()
@@ -43,39 +48,49 @@ export default function RoutineBuilder() {
     const lines = text.split('\n')
     let currentDay: ParsedDay | null = null
 
-    for (const line of lines) {
-      const t = line.trim()
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim()
       if (!t) continue
 
-      if (t.toLowerCase().startsWith('rutina:')) { result.name = t.substring(7).trim(); continue }
-      if (t.toLowerCase().startsWith('carpeta:')) { result.folder = t.substring(8).trim(); continue }
-      if (t.toLowerCase().startsWith('notas:')) { result.notes = t.substring(6).trim(); continue }
+      // Usamos Regex (/.../i) para que soporte espacios variables ("Rutina:", "Rutina : ", etc.)
+      if (/^rutina\s*:/i.test(t)) { result.name = t.replace(/^rutina\s*:/i, '').trim(); continue }
+      if (/^carpeta\s*:/i.test(t)) { result.folder = t.replace(/^carpeta\s*:/i, '').trim(); continue }
+      if (/^notas\s*:/i.test(t)) { result.notes = t.replace(/^notas\s*:/i, '').trim(); continue }
       
-      if (t.toLowerCase().startsWith('día:') || t.toLowerCase().startsWith('dia:')) {
-        currentDay = { name: t.substring(4).trim(), exercises: [] }
+      if (/^d[íi]a\s*:/i.test(t)) {
+        currentDay = { name: t.replace(/^d[íi]a\s*:/i, '').trim(), exercises: [] }
         result.days.push(currentDay)
         continue
       }
 
       if (t.includes('|')) {
         if (!currentDay) { 
-          result.errors.push(`Encontré el ejercicio "${t}" antes de definir un Día. Usa "Día: Nombre" arriba.`)
+          result.errors.push(`Línea ${i + 1}: Encontré el ejercicio "${t.split('|')[0].trim()}" antes de definir un Día. Usa "Día: Nombre".`)
           continue 
         }
 
         const [exName, setsStr] = t.split('|').map(s => s.trim())
         
-        // Búsqueda insensible a mayúsculas
-        const ex = allExercises.find(e => e.name.toLowerCase() === exName.toLowerCase())
+        // Búsqueda inteligente
+        const ex = allExercises.find(e => normalize(e.name) === normalize(exName))
         if (!ex) {
-           result.errors.push(`El ejercicio "${exName}" no existe en tu catálogo. Créalo primero.`)
+           result.errors.push(`Línea ${i + 1}: El ejercicio "${exName}" no existe en tu catálogo. Escríbelo exactamente igual o créalo primero.`)
            continue
         }
 
         const setsArr = setsStr.split(',').map(s => s.trim())
         const sets_config = setsArr.map(s => {
-           const [r, w] = s.split('x').map(Number)
-           return { reps: r || 10, weight: w || 0 }
+           // Separa por 'x', 'X' o '*'
+           const parts = s.split(/[xX*]/)
+           
+           // Extraemos SOLO los números. Esto permite escribir "10 reps x 20.5 kg" y que siga funcionando
+           const repsStr = parts[0] ? parts[0].replace(/[^0-9]/g, '') : ''
+           const weightStr = parts[1] ? parts[1].replace(/[^0-9.]/g, '') : ''
+
+           const r = parseInt(repsStr) || 10
+           const w = parseFloat(weightStr) || 0
+           
+           return { reps: r, weight: w }
         })
 
         currentDay.exercises.push({
@@ -88,7 +103,6 @@ export default function RoutineBuilder() {
       }
     }
 
-    // Validaciones finales
     if (result.days.length === 0 && text.trim().length > 10) {
       result.errors.push('No has definido ningún día. Usa "Día: Nombre del día"')
     }
@@ -123,8 +137,8 @@ export default function RoutineBuilder() {
 
       {parsedResult.errors.length > 0 ? (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl mb-4 flex flex-col gap-2 text-sm">
-          <div className="flex items-center gap-2 font-bold"><AlertTriangle size={18} /> Hay errores en tu texto:</div>
-          <ul className="list-disc pl-5">
+          <div className="flex items-center gap-2 font-bold"><AlertTriangle size={18} /> Revisa estos errores:</div>
+          <ul className="list-disc pl-5 space-y-1">
             {parsedResult.errors.map((err, i) => <li key={i}>{err}</li>)}
           </ul>
         </div>
@@ -135,14 +149,14 @@ export default function RoutineBuilder() {
       ) : null}
 
       <div className="bg-zinc-900 p-4 rounded-2xl mb-4">
-        <p className="text-xs text-zinc-400 mb-2">
-          Pega aquí tu rutina estructurada. El sistema la procesará en tiempo real.
+        <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
+          Pega aquí tu rutina. El sistema es inteligente: puedes usar "x", "X" o "*" y añadir "kg" o "lbs" al final de los pesos sin que se rompa.
         </p>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-[50vh] text-sm font-mono resize-none leading-relaxed"
-          placeholder={`Rutina: Rutina Arnold\nCarpeta: Hipertrofia\nNotas: Alta frecuencia\n\nDía: Lunes - Pecho\nPress de Banca | 8x20, 7x18, 5x15\nAperturas | 10x10, 10x10`}
+          placeholder={`Rutina: Rutina Arnold\nCarpeta: Hipertrofia\nNotas: Alta frecuencia\n\nDía: Lunes - Pecho\nPress de Banca | 8x20, 7x18kg, 5x15\nAperturas | 10x10, 10X10, 10*10`}
         />
       </div>
     </div>
