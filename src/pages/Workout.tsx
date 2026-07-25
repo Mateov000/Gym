@@ -67,22 +67,37 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
 
     // ---> RESOLUCIÓN DEL EJERCICIO CON TIPADO SEGURO <---
   const rawEx = workoutEx.exercise
+    // ---> RESOLUCIÓN TOTAL DEL EJERCICIO <---
   const exercise = useMemo(() => {
-    const targetId = rawEx?.id || (rawEx as any)?.exercise_id || (workoutEx as any).exercise_id
-    const catalogMatch = allExercises.find(e => e.id === targetId)
+    const rawEx = workoutEx.exercise
     
-    if (catalogMatch) return catalogMatch
-    if (rawEx && rawEx.name) return rawEx as Exercise
-    
+    // 1. Si el objeto ya tiene un nombre válido, lo usamos directo
+    if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio') {
+      return rawEx as Exercise
+    }
+
+    // 2. Si no, buscamos por ID en todas las variantes posibles (id, exercise_id)
+    const targetId = 
+      (rawEx as any)?.id || 
+      (rawEx as any)?.exercise_id || 
+      (workoutEx as any).exercise_id ||
+      (workoutEx as any).id
+
+    if (targetId) {
+      const catalogMatch = allExercises.find(e => e.id === targetId)
+      if (catalogMatch) return catalogMatch
+    }
+
+    // 3. Si de plano no se encontró, devolvemos un objeto seguro pero con la pista del ID por si acaso
     return { 
       id: targetId || '', 
-      name: rawEx?.name || 'Ejercicio',
+      name: (rawEx as any)?.name || 'Ejercicio sin nombre',
       muscle_group: '',
       image_url: '',
       description: '',
       config: null
     } as Exercise
-  }, [rawEx, (workoutEx as any).exercise_id, allExercises])
+  }, [workoutEx, allExercises])
 
   const sets = workoutEx.sets || []
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
