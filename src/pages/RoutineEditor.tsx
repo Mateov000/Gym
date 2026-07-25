@@ -24,6 +24,8 @@ export default function RoutineEditor() {
   const [notes, setNotes] = useState('')
   const [folder, setFolder] = useState('')
   const [days, setDays] = useState<any[]>([])
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
 
   useEffect(() => {
     if (routine) {
