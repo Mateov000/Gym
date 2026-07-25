@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { useWakeLock } from '../hooks/useWakeLock'
 import SmartStepper from '../components/SmartStepper'
 import CheckInButton from '../components/CheckInButton'
@@ -10,10 +11,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check } from 'lucide-react' // <-- Añadimos CheckCircle2
-import { useSettingsStore } from '../store/useSettingsStore'
+import { Trash2, Save, Timer, CheckCircle2, Check, Eye, EyeOff, Image, Dumbbell } from 'lucide-react'
 
-// ---> NUEVO: Añadido el prop "isExtra" para pintar de azul las series de más <---
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
@@ -56,25 +55,34 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }:
 
 interface ExerciseTrackerProps {
   workoutEx: WorkoutExercise
+  allExercises: Exercise[]
   defaultsMap: Map<string, { weight: number; reps: number }>
   swapCandidates: Exercise[]
   onSwapExercise: (targetExercise: Exercise) => void
 }
 
-const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
+const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { showQuickCompleteButton } = useSettingsStore()
-  const { exercise, sets } = workoutEx
+
+  // ---> RESOLUCIÓN DEL EJERCICIO: Garantiza nombre e imagen desde el catálogo <---
+  const rawEx = workoutEx.exercise
+  const exercise = useMemo(() => {
+    const targetId = rawEx?.id || (workoutEx as any).exercise_id
+    const catalogMatch = allExercises.find(e => e.id === targetId)
+    return catalogMatch || rawEx || { id: targetId || '', name: 'Ejercicio Desconocido' }
+  }, [rawEx, (workoutEx as any).exercise_id, allExercises])
+
+  const sets = workoutEx.sets || []
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
-  // ---> NUEVO: Lógica de Objetivo de Series <---
-  // Buscamos cuántas series tenías programadas (o asumimos 3 si es un ejercicio suelto sin rutina)
+  // Lógica de Objetivo de Series
   const targetSets = resolvedConfig.sets_config?.length > 0 
     ? resolvedConfig.sets_config.length 
     : ((workoutEx.meta as any)?.target_sets || 3);
   
   const currentSetIndex = sets.length
-  const isCompletedVisual = currentSetIndex >= targetSets // ¿Ya cumplimos el objetivo?
+  const isCompletedVisual = currentSetIndex >= targetSets
 
   const routineSpecificDefault = defaultsMap.get(`${workoutEx.meta?.routine_exercise_id}-set-${currentSetIndex}`)
   const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
@@ -84,6 +92,9 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
   const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
   const [isCompleted, setIsCompleted] = useState(false)
   const [showSwapList, setShowSwapList] = useState(false)
+  
+  // ---> NUEVO: Estado para alternar la visualización de la imagen/GIF <---
+  const [showImage, setShowImage] = useState(false)
 
   useEffect(() => {
     if (routineSpecificDefault) { setWeight(routineSpecificDefault.weight); setReps(routineSpecificDefault.reps) } 
@@ -105,27 +116,73 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
   }
 
   return (
-    // ---> NUEVO: El contenedor brilla en verde si ya cumpliste la meta <---
     <div className={`bg-zinc-900 border rounded-2xl p-5 mb-6 transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'}`}>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-start mb-4">
         <div>
-          {/* El título agrega un Check verde si ya terminaste */}
+          {/* ---> NOMBRE DEL EJERCICIO <--- */}
           <h2 className={`text-xl font-bold flex items-center gap-2 ${isCompletedVisual ? 'text-emerald-400' : 'text-emerald-500'}`}>
-            {exercise.name}
-            {isCompletedVisual && <CheckCircle2 className="text-emerald-500 w-5 h-5" />}
+            {exercise.name || 'Ejercicio'}
+            {isCompletedVisual && <CheckCircle2 className="text-emerald-500 w-5 h-5 flex-shrink-0" />}
           </h2>
-          <div className="flex gap-2 mt-1">
+          <div className="flex flex-wrap gap-2 mt-1">
+            {exercise.muscle_group && (
+              <span className="text-[10px] uppercase tracking-wider bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold">
+                {exercise.muscle_group}
+              </span>
+            )}
             {workoutEx.meta?.superset_id && <span className="text-[10px] uppercase tracking-wide bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-0.5">Superset</span>}
             {workoutEx.meta?.set_type === 'drop_set' && <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">Drop set</span>}
           </div>
         </div>
         
-        {/* Etiqueta de X / Y series. Se vuelve verde al completar. */}
-        <div className={`text-sm font-bold px-3 py-1 rounded-lg border transition-colors ${isCompletedVisual ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>
-          <span className={isCompletedVisual ? 'text-emerald-400' : 'text-zinc-100'}>{currentSetIndex}</span>
-          <span> / {targetSets} series</span>
+        <div className="flex items-center gap-2">
+          {/* ---> NUEVO: Botón para Ver/Ocultar Demo Imagen <--- */}
+          <button
+            onClick={() => setShowImage(!showImage)}
+            className={`p-2 rounded-xl border transition-colors flex items-center gap-1.5 text-xs font-bold ${
+              showImage 
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
+                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+            }`}
+            title={showImage ? "Ocultar imagen" : "Ver imagen"}
+          >
+            {showImage ? <EyeOff size={16} /> : <Image size={16} />}
+            <span className="hidden sm:inline">{showImage ? 'Ocultar Demo' : 'Ver Demo'}</span>
+          </button>
+
+          {/* Marcador X / Y series */}
+          <div className={`text-sm font-bold px-3 py-1.5 rounded-xl border transition-colors ${isCompletedVisual ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>
+            <span className={isCompletedVisual ? 'text-emerald-400' : 'text-zinc-100'}>{currentSetIndex}</span>
+            <span> / {targetSets} series</span>
+          </div>
         </div>
       </div>
+
+      {/* ---> NUEVO: Desplegable de Imagen / GIF del Ejercicio <--- */}
+      {showImage && (
+        <div className="mb-5 bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden p-3 flex flex-col items-center justify-center animate-in fade-in duration-200">
+          {exercise.image_url ? (
+            <img 
+              src={exercise.image_url} 
+              alt={exercise.name} 
+              className="max-h-60 w-auto object-contain rounded-xl"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none'
+              }}
+            />
+          ) : (
+            <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
+              <Dumbbell size={24} className="text-zinc-700" />
+              Este ejercicio no tiene imagen o GIF asignado en el catálogo.
+            </div>
+          )}
+          {exercise.description && (
+            <p className="text-xs text-zinc-400 mt-3 px-2 text-center border-t border-zinc-800/80 pt-2 w-full leading-relaxed">
+              {exercise.description}
+            </p>
+          )}
+        </div>
+      )}
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
@@ -137,13 +194,12 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
               index={idx} 
               updateSet={updateSet} 
               removeSet={removeSet} 
-              isExtra={idx >= targetSets} // Le avisamos a la fila si es extra
+              isExtra={idx >= targetSets}
             />
           ))}
         </div>
       )}
 
-      {/* Separador visual si decides seguir haciendo series después de la meta */}
       {isCompletedVisual && (
         <div className="flex items-center gap-2 mb-4 mt-2 opacity-60">
           <div className="h-px bg-zinc-700 flex-1"></div>
@@ -164,7 +220,6 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
           <CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} />
         </div>
         
-        {/* ---> NUEVO: Botón rápido de completado <--- */}
         {showQuickCompleteButton && !isCompleted && (
           <button 
             onClick={handleCheckIn}
@@ -232,7 +287,7 @@ export default function Workout() {
   useWakeLock(!!activeSession)
 
   const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
-  const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'quick-swap'], queryFn: fetchExercises })
+  const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'catalog'], queryFn: fetchExercises })
   const defaultsMap = useMemo(() => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null), [recentSessions, activeSession?.routine_day_id])
 
   const [elapsed, setElapsed] = useState(0)
@@ -280,7 +335,12 @@ export default function Workout() {
   return (
     <div className="p-4 relative min-h-[80vh] pb-32">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-zinc-100">Entrenamiento</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100">Entrenamiento</h1>
+          {(activeSession as any).name && (
+            <p className="text-xs text-emerald-500 font-bold mt-0.5">{(activeSession as any).name}</p>
+          )}
+        </div>
         
         <div className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
           <Timer size={18} />
@@ -292,7 +352,14 @@ export default function Workout() {
         <div className="text-center text-zinc-500 my-10">Agrega ejercicios desde el catálogo.</div>
       ) : (
         workoutExercises.map((workoutEx, index) => (
-          <ExerciseTracker key={`${workoutEx.exercise.id}-${index}`} workoutEx={workoutEx} defaultsMap={defaultsMap} swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)} />
+          <ExerciseTracker 
+            key={`${workoutEx.exercise?.id || index}-${index}`} 
+            workoutEx={workoutEx} 
+            allExercises={allExercises}
+            defaultsMap={defaultsMap} 
+            swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} 
+            onSwapExercise={(targetExercise) => replaceExercise(workoutEx.exercise.id, targetExercise)} 
+          />
         ))
       )}
 
