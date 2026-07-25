@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit2, Trash2, Share2, Dumbbell } from 'lucide-react'
 import { fetchRoutines, deleteRoutine } from '../lib/queries'
-import type { Routine } from '../types/workout'
 
 export default function Routines() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   
-  const { data: routines = [], isLoading } = useQuery<Routine[]>({
+  // Quitamos el <Routine[]> manual y dejamos que TS lo infiera de fetchRoutines
+  const { data: routines = [], isLoading } = useQuery({
     queryKey: ['routines'],
     queryFn: fetchRoutines
   })
@@ -20,7 +20,6 @@ export default function Routines() {
     onError: (err: any) => alert(`Error al eliminar: ${err.message}`)
   })
 
-  // ---> NUEVO: Estado para la confirmación visual de borrado <---
   const [routineToDelete, setRoutineToDelete] = useState<string | null>(null)
 
   const handleShare = (e: React.MouseEvent, routineId: string) => {
@@ -46,7 +45,7 @@ export default function Routines() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {routines.map((routine) => (
+          {routines.map((routine: any) => (
             <div 
               key={routine.id} 
               className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors"
@@ -76,7 +75,6 @@ export default function Routines() {
                   <Share2 size={18} />
                 </button>
 
-                {/* ---> NUEVO: Confirmación Visual de Borrado (Sin INP Error) <--- */}
                 {routineToDelete === routine.id ? (
                   <div className="flex items-center gap-2 animate-in fade-in duration-200">
                     <button
@@ -118,7 +116,6 @@ export default function Routines() {
         </div>
       )}
 
-      {/* Botón Flotante para Crear (FAB) */}
       <button 
         onClick={() => navigate('/routines/new')}
         className="fixed bottom-24 right-6 bg-emerald-500 text-zinc-950 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-transform z-40"
