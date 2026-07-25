@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2 } from 'lucide-react' // <-- Añadimos CheckCircle2
+import { Trash2, Save, Timer, CheckCircle2, Check } from 'lucide-react' // <-- Añadimos CheckCircle2
 import { useSettingsStore } from '../store/useSettingsStore'
 
 // ---> NUEVO: Añadido el prop "isExtra" para pintar de azul las series de más <---
