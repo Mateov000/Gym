@@ -1,91 +1,64 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
-  ArrowLeft, Save, Plus, GripVertical, Trash2, Dumbbell 
-} from 'lucide-react'
-import { 
-  fetchRoutineById, 
-  fetchExercises, 
-  updateRoutine, 
-  deleteRoutine 
-} from '../lib/queries'
-import type { 
-  RoutineWithDays, 
-  RoutineDayWithExercises, 
-  RoutineExerciseWithDetails, 
-  Exercise 
-} from '../types/workout'
-import ExerciseConfigModal from '../components/ExerciseConfigModal'
+// ---> AÑADIMOS deleteRoutine A LA IMPORTACIÓN <---
+import { fetchRoutineById, fetchExercises, updateRoutine, deleteRoutine } from '../lib/queries'
+import { Trash2, Plus, ArrowLeft, Save } from 'lucide-react'
 
 export default function RoutineEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  // 1. Estados Locales
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [days, setDays] = useState<Partial<RoutineDayWithExercises>[]>([])
-  
-  // Estado para controlar qué día estamos editando (añadiendo ejercicios)
-  const [activeDayIndex, setActiveDayIndex] = useState<number | null>(null)
-  
-  // Estado para el modal de configuración de un ejercicio específico
-  const [editingConfigEx, setEditingConfigEx] = useState<{
-    dayIdx: number
-    exIdx: number
-    data: Partial<RoutineExerciseWithDetails>
-  } | null>(null)
-
   // ---> NUEVO: Estado para la confirmación visual de borrado <---
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // 2. Consultas (Queries)
-  const { data: catalog = [] } = useQuery<Exercise[]>({
+  const { data: routine, isLoading } = useQuery({
+    queryKey: ['routine-edit', id],
+    queryFn: () => fetchRoutineById(id!),
+    enabled: !!id,
+  })
+
+  const { data: allExercises = [] } = useQuery({
     queryKey: ['exercises', 'catalog'],
-    queryFn: fetchExercises
+    queryFn: fetchExercises,
   })
 
-  const { data: initialRoutine, isLoading } = useQuery<RoutineWithDays | null>({
-    queryKey: ['routine', id],
-    queryFn: () => (id ? fetchRoutineById(id) : Promise.resolve(null)),
-    enabled: !!id
-  })
+  const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [folder, setFolder] = useState('')
+  const [days, setDays] = useState<any[]>([])
 
-  // 3. Inicializar el formulario cuando llegan los datos
   useEffect(() => {
-    if (initialRoutine) {
-      setName(initialRoutine.name)
-      setDescription(initialRoutine.description || '')
-      setDays(
-        (initialRoutine.routine_days || []).map(day => ({
-          ...day,
-          routine_exercises: [...(day.routine_exercises || [])]
-        }))
-      )
+    if (routine) {
+      setName(routine.name)
+      setNotes(routine.notes || '')
+      setFolder(routine.folder || '')
+      const mappedDays = routine.routine_days.map((d: any) => ({
+        name: d.name,
+        day_order: d.day_order,
+        exercises: (d.routine_exercises || []).map((ex: any) => ({
+          exercise_id: ex.exercise_id,
+          target_sets: ex.target_sets,
+          target_reps: ex.target_reps,
+        })),
+      }))
+      setDays(mappedDays)
     }
-  }, [initialRoutine])
+  }, [routine])
 
-  // 4. Mutaciones
   const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) throw new Error('No hay ID de rutina')
-      return updateRoutine(id, { name, description }, days)
-    },
+    mutationFn: () => updateRoutine(id!, name, notes, folder, days),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
-      queryClient.invalidateQueries({ queryKey: ['routine', id] })
       navigate('/routines')
     },
-    onError: (err: any) => alert(`Error al guardar: ${err.message}`)
+    onError: (err: any) => alert(`Error al guardar: ${err.message}`),
   })
 
+  // ---> NUEVO: Mutación para borrar la rutina <---
   const deleteMutation = useMutation({
-    mutationFn: () => {
-      if (!id) throw new Error('No hay ID de rutina')
-      return deleteRoutine(id)
-    },
+    mutationFn: () => deleteRoutine(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
       navigate('/routines')
@@ -93,195 +66,165 @@ export default function RoutineEditor() {
     onError: (err: any) => alert(`Error al eliminar: ${err.message}`)
   })
 
-  // 5. Manejadores de Días
-  const handleAddDay = () => {
-    setDays([...days, { name: `Día ${days.length + 1}`, routine_exercises: [] }])
+  const addDay = () => {
+    setDays([...days, { name: `Día ${days.length + 1}`, day_order: days.length + 1, exercises: [] }])
   }
 
-  const handleUpdateDayName = (idx: number, newName: string) => {
-    const updated = [...days]
-    updated[idx] = { ...updated[idx], name: newName }
-    setDays(updated)
+  const addExercise = (dayIndex: number) => {
+    if (allExercises.length === 0) return
+    const newDays = [...days]
+    newDays[dayIndex].exercises.push({
+      exercise_id: allExercises[0].id,
+      target_sets: 3,
+      target_reps: 10,
+    })
+    setDays(newDays)
   }
 
-  const handleRemoveDay = (idx: number) => {
-    if (window.confirm('¿Seguro que quieres eliminar este día y todos sus ejercicios?')) {
-      const updated = [...days]
-      updated.splice(idx, 1)
-      setDays(updated)
-      if (activeDayIndex === idx) setActiveDayIndex(null)
-    }
+  const updateExercise = (dayIndex: number, exIndex: number, field: string, value: string | number) => {
+    const newDays = [...days]
+    newDays[dayIndex].exercises[exIndex][field] = value
+    setDays(newDays)
   }
 
-  // 6. Manejadores de Ejercicios
-  const handleAddExerciseToDay = (ex: Exercise) => {
-    if (activeDayIndex === null) return
-
-    const newRoutineExercise: Partial<RoutineExerciseWithDetails> = {
-      exercise_id: ex.id,
-      exercise: ex,
-      order_index: days[activeDayIndex].routine_exercises?.length || 0,
-      config: null
-    }
-
-    const updatedDays = [...days]
-    const currentExercises = updatedDays[activeDayIndex].routine_exercises || []
-    updatedDays[activeDayIndex].routine_exercises = [...currentExercises, newRoutineExercise as any]
-    
-    setDays(updatedDays)
-    setActiveDayIndex(null) // Cerramos el selector
+  const removeExercise = (dayIndex: number, exIndex: number) => {
+    const newDays = [...days]
+    newDays[dayIndex].exercises.splice(exIndex, 1)
+    setDays(newDays)
   }
 
-  const handleRemoveExercise = (dayIdx: number, exIdx: number) => {
-    const updatedDays = [...days]
-    const currentExercises = [...(updatedDays[dayIdx].routine_exercises || [])]
-    currentExercises.splice(exIdx, 1)
-    updatedDays[dayIdx].routine_exercises = currentExercises
-    setDays(updatedDays)
+  const removeDay = (dayIndex: number) => {
+    const newDays = [...days]
+    newDays.splice(dayIndex, 1)
+    setDays(newDays)
   }
 
-  const handleSaveConfig = (config: any) => {
-    if (!editingConfigEx) return
-    const { dayIdx, exIdx } = editingConfigEx
-    
-    const updatedDays = [...days]
-    const currentExercises = [...(updatedDays[dayIdx].routine_exercises || [])]
-    currentExercises[exIdx] = { ...currentExercises[exIdx], config }
-    updatedDays[dayIdx].routine_exercises = currentExercises
-    
-    setDays(updatedDays)
-    setEditingConfigEx(null)
-  }
-
-  // 7. Renderizado
-  if (isLoading) {
-    return <div className="p-6 text-center text-zinc-500 min-h-screen">Cargando rutina...</div>
-  }
+  if (isLoading) return <div className="p-6 text-zinc-500">Cargando editor...</div>
 
   return (
-    <div className="p-4 pb-32 min-h-screen text-zinc-100 relative">
-      {/* Cabecera */}
-      <div className="flex items-center gap-4 mb-6">
-        <button 
-          onClick={() => navigate('/routines')} 
-          className="text-zinc-400 p-2 bg-zinc-900 rounded-xl"
-        >
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24">
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={() => navigate('/routines')} className="text-zinc-400 p-2 bg-zinc-900 rounded-xl">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-xl font-bold flex-1 truncate">Editar Rutina</h1>
-        <button 
+        <h1 className="text-xl font-bold">Editar Rutina</h1>
+        <button
           onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || !name.trim() || days.length === 0}
-          className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"
+          disabled={saveMutation.isPending}
+          className="bg-emerald-500 text-zinc-950 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50"
         >
           <Save size={20} />
+          {saveMutation.isPending ? '...' : 'Guardar'}
         </button>
       </div>
 
-      {/* Información Básica */}
-      <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl mb-6">
-        <input 
-          type="text" 
+      <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
+        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Nombre de la Rutina</label>
+        <input
+          type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Nombre de la rutina (ej. Push Pull Legs)"
-          className="w-full bg-transparent text-xl font-bold text-zinc-100 outline-none mb-3"
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
         />
-        <textarea 
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Descripción o notas generales (opcional)"
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-20"
+        
+        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Carpeta (Opcional)</label>
+        <input
+          type="text"
+          placeholder="Ej: Hipertrofia, Pierna, Viajes..."
+          value={folder}
+          onChange={(e) => setFolder(e.target.value)}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
+        />
+
+        <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Notas u Objetivo</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors resize-none h-24"
         />
       </div>
 
-      {/* Días de la Rutina */}
-      <div className="space-y-6 mb-8">
-        {days.map((day, dayIdx) => (
-          <div key={dayIdx} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-            <div className="flex justify-between items-center mb-4">
-              <input 
-                type="text" 
-                value={day.name}
-                onChange={(e) => handleUpdateDayName(dayIdx, e.target.value)}
-                className="bg-transparent text-lg font-bold text-emerald-500 outline-none flex-1"
-                placeholder="Nombre del día (ej. Pecho y Tríceps)"
-              />
-              <button 
-                onClick={() => handleRemoveDay(dayIdx)}
-                className="text-zinc-500 hover:text-red-500 p-2"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
+      {days.map((day, dIdx) => (
+        <div key={dIdx} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 mb-4">
+          <div className="flex justify-between items-center mb-4">
+            <input
+              type="text"
+              value={day.name}
+              onChange={(e) => {
+                const newDays = [...days]
+                newDays[dIdx].name = e.target.value
+                setDays(newDays)
+              }}
+              className="bg-transparent text-lg font-bold text-emerald-500 border-b border-zinc-700 outline-none w-1/2 focus:border-emerald-400"
+            />
+            <button onClick={() => removeDay(dIdx)} className="text-red-500 p-2 bg-red-500/10 rounded-lg">
+              <Trash2 size={16} />
+            </button>
+          </div>
 
-            {/* Ejercicios del Día */}
-            <div className="flex flex-col gap-2 mb-4">
-              {(day.routine_exercises || []).map((routineEx, exIdx) => (
-                <div 
-                  key={exIdx} 
-                  className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3"
-                >
-                  <GripVertical size={16} className="text-zinc-600 flex-shrink-0 cursor-grab" />
-                  
-                  <div className="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {routineEx.exercise?.image_url ? (
-                      <img src={routineEx.exercise.image_url} alt="demo" className="w-full h-full object-cover" />
-                    ) : (
-                      <Dumbbell size={16} className="text-zinc-700" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-zinc-100 truncate">{routineEx.exercise?.name}</p>
-                    <p className="text-[10px] text-emerald-500 uppercase">
-                      {routineEx.config?.sets_config?.length || 3} Series
-                    </p>
-                  </div>
-
-                  <button 
-                    onClick={() => setEditingConfigEx({ dayIdx, exIdx, data: routineEx })}
-                    className="px-3 py-1.5 bg-zinc-800 rounded-lg text-xs font-bold text-zinc-300"
+          <div className="flex flex-col gap-3 mb-4">
+            {day.exercises.map((ex: any, eIdx: number) => (
+              <div key={eIdx} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl">
+                <div className="flex justify-between items-start gap-2 mb-3">
+                  <select
+                    value={ex.exercise_id}
+                    onChange={(e) => updateExercise(dIdx, eIdx, 'exercise_id', e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 text-sm rounded-lg p-2 outline-none text-zinc-200"
                   >
-                    Config
-                  </button>
-                  <button 
-                    onClick={() => handleRemoveExercise(dayIdx, exIdx)}
-                    className="p-2 text-zinc-500 hover:text-red-500"
-                  >
+                    {allExercises.map((catEx: any) => (
+                      <option key={catEx.id} value={catEx.id}>{catEx.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => removeExercise(dIdx, eIdx)} className="text-zinc-500 hover:text-red-500 p-2">
                     <Trash2 size={16} />
                   </button>
                 </div>
-              ))}
-            </div>
-
-            <button 
-              onClick={() => setActiveDayIndex(dayIdx)}
-              className="w-full py-3 bg-zinc-950 border border-zinc-800 border-dashed rounded-xl text-zinc-400 font-bold text-sm hover:text-emerald-500 hover:border-emerald-500/50 transition-colors"
-            >
-              + Añadir Ejercicio
-            </button>
+                
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-zinc-500 uppercase">Series</label>
+                    <input
+                      type="number"
+                      value={ex.target_sets}
+                      onChange={(e) => updateExercise(dIdx, eIdx, 'target_sets', parseInt(e.target.value) || 0)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-zinc-500 uppercase">Reps</label>
+                    <input
+                      type="number"
+                      value={ex.target_reps}
+                      onChange={(e) => updateExercise(dIdx, eIdx, 'target_reps', parseInt(e.target.value) || 0)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <button 
-        onClick={handleAddDay}
-        className="w-full py-4 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl font-bold flex items-center justify-center gap-2 mb-12"
-      >
-        <Plus size={20} /> Añadir un nuevo Día
+          <button onClick={() => addExercise(dIdx)} className="w-full py-3 bg-zinc-800/50 border border-zinc-700 border-dashed rounded-xl text-zinc-400 text-sm flex justify-center items-center gap-2">
+            <Plus size={16} /> Agregar Ejercicio
+          </button>
+        </div>
+      ))}
+
+      <button onClick={addDay} className="w-full py-4 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl font-bold flex justify-center items-center gap-2">
+        <Plus size={20} /> Añadir Día de Entrenamiento
       </button>
 
-      {/* ---> NUEVO: Confirmación visual sin window.confirm (Problema INP resuelto) <--- */}
+      {/* ---> NUEVO: Botón final para eliminar rutina sin INP Issue <--- */}
       {showDeleteConfirm ? (
-        <div className="flex flex-col gap-3 animate-in fade-in zoom-in duration-200 mt-8 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl">
+        <div className="flex flex-col gap-3 animate-in fade-in zoom-in duration-200 mt-12 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl">
           <p className="text-red-500 text-center font-bold text-sm">¿Seguro que quieres borrar esta rutina definitivamente?</p>
           <div className="flex gap-2">
             <button
               onClick={() => deleteMutation.mutate()}
-              className="flex-1 bg-red-500 text-white font-bold p-3 rounded-xl active:scale-95 transition-transform"
+              disabled={deleteMutation.isPending}
+              className="flex-1 bg-red-500 text-white font-bold p-3 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
             >
-              Sí, borrar
+              {deleteMutation.isPending ? 'Borrando...' : 'Sí, borrar'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(false)}
@@ -294,52 +237,10 @@ export default function RoutineEditor() {
       ) : (
         <button 
           onClick={() => setShowDeleteConfirm(true)}
-          className="w-full flex items-center justify-center gap-2 py-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl font-bold active:scale-95 transition-transform mt-8"
+          className="w-full flex items-center justify-center gap-2 py-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl font-bold active:scale-95 transition-transform mt-12"
         >
           <Trash2 size={20} /> Eliminar Rutina
         </button>
-      )}
-
-      {/* Modal del Catálogo */}
-      {activeDayIndex !== null && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col animate-in slide-in-from-bottom">
-          <div className="p-4 bg-zinc-950 flex justify-between items-center border-b border-zinc-800">
-            <h2 className="text-lg font-bold text-zinc-100">Seleccionar Ejercicio</h2>
-            <button onClick={() => setActiveDayIndex(null)} className="p-2 text-zinc-400 font-bold">X</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
-            {catalog.map(ex => (
-              <div 
-                key={ex.id}
-                onClick={() => handleAddExerciseToDay(ex)}
-                className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex items-center gap-4 cursor-pointer active:scale-95 transition-transform"
-              >
-                <div className="w-12 h-12 bg-zinc-950 rounded-lg flex items-center justify-center overflow-hidden">
-                  {ex.image_url ? (
-                    <img src={ex.image_url} alt={ex.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Dumbbell size={16} className="text-zinc-700" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-bold text-zinc-100">{ex.name}</p>
-                  <p className="text-[10px] text-zinc-500 uppercase">{ex.muscle_group}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Configuración (Series, Reps, etc) */}
-      {editingConfigEx && (
-        <ExerciseConfigModal 
-          isOpen={true}
-          onClose={() => setEditingConfigEx(null)}
-          onSave={handleSaveConfig}
-          initialConfig={editingConfigEx.data.config || undefined}
-          exerciseName={editingConfigEx.data.exercise?.name || 'Ejercicio'}
-        />
       )}
     </div>
   )
