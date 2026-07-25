@@ -58,6 +58,15 @@ export async function deleteExercise(id: string) {
   if (error) throw error
 }
 
+export async function deleteAllExercises() {
+  const { error } = await supabase
+    .from('exercises')
+    .delete()
+    .not('id', 'is', null) // Truco para decirle a Supabase que borre TODAS las filas
+    
+  if (error) throw error
+}
+
 
 // ==========================================
 // 2. SESIONES Y ENTRENAMIENTO

@@ -2,14 +2,13 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download } from 'lucide-react'
-import { fetchExercises, createExercise, updateExercise, deleteExercise } from '../lib/queries'
+import { fetchExercises, createExercise, updateExercise, deleteExercise, deleteAllExercises } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import type { Exercise } from '../types/workout'
 
-// ---> NUEVO: Motor que procesa el texto plano a Ejercicios <---
+// Motor que procesa el texto plano a Ejercicios
 function parseExercisesText(text: string): Partial<Exercise>[] {
   const exercises: Partial<Exercise>[] = []
-  // Separamos el texto por bloques usando los dobles saltos de línea
   const blocks = text.split(/\n\s*\n/)
 
   for (const block of blocks) {
@@ -33,12 +32,10 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
         ex.description = line.substring(12).trim()
         isParsingDesc = true
       } else if (isParsingDesc) {
-        // Si seguimos dentro de la descripción y hay saltos de línea, los anexamos
         ex.description = (ex.description || '') + '\n' + line.trim()
       }
     }
     
-    // Solo lo agregamos si al menos detectó un nombre válido
     if (ex.name) {
       exercises.push(ex)
     }
@@ -57,14 +54,12 @@ export default function Exercises() {
   })
 
   const [search, setSearch] = useState('')
-  const [view, setView] = useState<'list' | 'form' | 'import'>('list') // <-- Añadido estado 'import'
+  const [view, setView] = useState<'list' | 'form' | 'import'>('list')
   const [editingEx, setEditingEx] = useState<Partial<Exercise> | null>(null)
   
-  // Estados para la importación
   const [importText, setImportText] = useState('')
   const [isImporting, setIsImporting] = useState(false)
 
-  // Filtro de búsqueda
   const filteredExercises = useMemo(() => {
     return exercises.filter(ex => 
       ex.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -72,7 +67,6 @@ export default function Exercises() {
     )
   }, [exercises, search])
 
-  // Mutaciones CRUD
   const saveMutation = useMutation({
     mutationFn: async (ex: Partial<Exercise>) => {
       if (ex.id) return updateExercise(ex.id, ex)
@@ -96,7 +90,16 @@ export default function Exercises() {
     onError: (err: any) => alert(`Error al eliminar: ${err.message}`)
   })
 
-  // Manejadores
+  // ---> NUEVO: Mutación para borrar TODO <---
+  const deleteAllMutation = useMutation({
+    mutationFn: deleteAllExercises,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
+      alert('¡El catálogo ha sido vaciado con éxito!')
+    },
+    onError: (err: any) => alert(`Error al vaciar catálogo: ${err.message}`)
+  })
+
   const handleExerciseClick = (ex: Exercise) => {
     if (activeSession) {
       addExercise(ex, { set_type: 'normal', default_reps: 10, default_weight: 20 })
@@ -113,13 +116,19 @@ export default function Exercises() {
     }
   }
 
+  // ---> NUEVO: Manejador del botón Borrar Todo <---
+  const handleDeleteAll = () => {
+    if (window.confirm('🚨 ¿ESTÁS SEGURO? Esto eliminará TODOS los ejercicios de tu base de datos.\n\nEsta acción NO se puede deshacer.')) {
+      deleteAllMutation.mutate()
+    }
+  }
+
   const handleImportSubmit = async () => {
     setIsImporting(true)
     try {
       const parsed = parseExercisesText(importText)
       if (parsed.length === 0) throw new Error("No se detectó ningún ejercicio válido. Revisa el formato.")
 
-      // Guardamos todos los ejercicios detectados en paralelo
       await Promise.all(parsed.map(ex => createExercise(ex)))
 
       await queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
@@ -253,15 +262,29 @@ Descripcion: Mantén el torso recto para enfocar el cuádriceps.`}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Ejercicios</h1>
         
-        {/* Botón de importar (solo si no estás en medio de un entrenamiento) */}
+        {/* Controles del encabezado (solo si no hay sesión activa) */}
         {!activeSession && (
-          <button 
-            onClick={() => setView('import')}
-            className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-emerald-500 transition-colors"
-            aria-label="Importar ejercicios"
-          >
-            <Download size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* ---> NUEVO: Botón de Vaciar Catálogo <--- */}
+            {exercises.length > 0 && (
+              <button 
+                onClick={handleDeleteAll}
+                disabled={deleteAllMutation.isPending}
+                className="p-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                aria-label="Vaciar catálogo"
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
+
+            <button 
+              onClick={() => setView('import')}
+              className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-emerald-500 transition-colors"
+              aria-label="Importar ejercicios"
+            >
+              <Download size={20} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -319,7 +342,9 @@ Descripcion: Mantén el torso recto para enfocar el cuádriceps.`}
             </div>
           ))}
           {filteredExercises.length === 0 && (
-            <div className="text-center text-zinc-500 mt-10">No se encontraron ejercicios.</div>
+            <div className="text-center text-zinc-500 mt-10">
+              No se encontraron ejercicios.
+            </div>
           )}
         </div>
       )}
