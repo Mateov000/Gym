@@ -6,11 +6,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // <-- ¡Esta era la pieza mágica que yo borré!
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // ---> NUEVO: Obligamos a la PWA a resolver todas las URLs en la app <---
+      workbox: {
+        navigateFallback: '/index.html',
+        navigateFallbackAllowlist: [/^(?!\/__).*/]
+      },
       devOptions: {
-        enabled: false // Lo dejamos apagado en desarrollo para que no moleste con los estilos
+        enabled: false 
       },
       includeAssets: ['favicon.svg', 'icons.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
