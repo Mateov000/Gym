@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom' // <-- Importamos Navigate
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
@@ -26,6 +26,14 @@ const Profile = () => (
   </div>
 )
 
+// Envoltorio para proteger las páginas que SÍ requieren login obligatorio
+function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
+  if (!session) {
+    return <Auth />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
@@ -47,30 +55,26 @@ export default function App() {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Cargando...</div>
   }
 
-  // Si no está logueado, mostramos Auth.
-  // La genialidad aquí es que la URL (ej. /routines/shared/...) se conserva en el navegador.
-  if (!session) {
-    return <Auth />
-  }
-
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout />}>
+        {/* RUTA PÚBLICA: Cualquiera con el link la puede abrir sin estar logueado */}
+        <Route path="/routines/shared/:id" element={<SharedRoutine />} />
+
+        {/* RUTAS PRIVADAS: Requieren estar autenticado */}
+        <Route element={<ProtectedRoute session={session}><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Feed />} />
           <Route path="/routines" element={<Routines />} />
           <Route path="/exercises" element={<Exercises />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
         
-        <Route path="/workout" element={<Workout />} />
-        <Route path="/routines/new" element={<RoutineBuilder />} />
-        <Route path="/routines/shared/:id" element={<SharedRoutine />} />
-        <Route path="/routines/:id/edit" element={<RoutineEditor />} />
-        <Route path="/session/:id/edit" element={<SessionEditor />} />
+        <Route path="/workout" element={<ProtectedRoute session={session}><Workout /></ProtectedRoute>} />
+        <Route path="/routines/new" element={<ProtectedRoute session={session}><RoutineBuilder /></ProtectedRoute>} />
+        <Route path="/routines/:id/edit" element={<ProtectedRoute session={session}><RoutineEditor /></ProtectedRoute>} />
+        <Route path="/session/:id/edit" element={<ProtectedRoute session={session}><SessionEditor /></ProtectedRoute>} />
 
-        {/* ---> NUEVO: RUTA COMODÍN (CATCH-ALL) <--- */}
-        {/* Si el usuario ingresa a cualquier link que no definimos arriba, lo mandamos al inicio */}
+        {/* CUALQUIER OTRA RUTA NO EXISTENTE: Redirige al inicio */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
