@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download, Globe2, Lock } from 'lucide-react' // <-- Nuevos iconos
+import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download, Globe2, Lock } from 'lucide-react'
 import { fetchExercises, createExercise, updateExercise, deleteExercise, deleteAllExercises } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
-import { supabase } from '../lib/supabase' // <-- Importado para saber quién soy
+import { supabase } from '../lib/supabase'
 import type { Exercise } from '../types/workout'
 
 function parseExercisesText(text: string): Partial<Exercise>[] {
@@ -33,7 +33,6 @@ export default function Exercises() {
   const queryClient = useQueryClient()
   const { activeSession, addExercise } = useWorkoutStore()
 
-  // ---> NUEVO: Estado para saber el ID del usuario actual <---
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   
   useEffect(() => {
@@ -51,6 +50,9 @@ export default function Exercises() {
   
   const [importText, setImportText] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  
+  // ---> NUEVO: Estado para saber si importar como público o privado <---
+  const [importAsPublic, setImportAsPublic] = useState(false)
 
   const filteredExercises = useMemo(() => {
     return exercises.filter(ex => 
@@ -96,7 +98,6 @@ export default function Exercises() {
       addExercise(ex, { set_type: 'normal', default_reps: 10, default_weight: 20 })
       navigate('/workout')
     } else {
-      // Solo abrimos el formulario si somos dueños del ejercicio o es un ejercicio global antiguo
       const isOwner = ex.user_id === currentUser
       const isLegacyGlobal = !ex.user_id
       if (isOwner || isLegacyGlobal) {
@@ -126,11 +127,11 @@ export default function Exercises() {
       const parsed = parseExercisesText(importText)
       if (parsed.length === 0) throw new Error("No se detectó ningún ejercicio válido.")
 
-      // Los ejercicios importados los hacemos PRIVADOS por defecto para no ensuciar el catálogo de los demás
-      await Promise.all(parsed.map(ex => createExercise({ ...ex, is_public: false })))
+      // ---> NUEVO: Respetamos la decisión del usuario (importAsPublic) <---
+      await Promise.all(parsed.map(ex => createExercise({ ...ex, is_public: importAsPublic })))
 
       await queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
-      alert(`¡Se importaron ${parsed.length} ejercicios con éxito! (Guardados como privados)`)
+      alert(`¡Se importaron ${parsed.length} ejercicios con éxito!`)
       setView('list')
       setImportText('')
     } catch (err: any) {
@@ -148,9 +149,29 @@ export default function Exercises() {
           <h1 className="text-xl font-bold">Importar Ejercicios</h1>
           <button onClick={handleImportSubmit} disabled={isImporting || !importText.trim()} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"><Save size={20} /></button>
         </div>
+
+        {/* ---> NUEVO: Selector visual para importación Pública/Privada <--- */}
+        <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4 flex items-center justify-between">
+          <div className="pr-4">
+            <div className="flex items-center gap-2 mb-1">
+              {importAsPublic ? <Globe2 size={16} className="text-emerald-500" /> : <Lock size={16} className="text-blue-400" />}
+              <p className="font-bold text-zinc-100">Visibilidad de importación</p>
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              {importAsPublic ? 'Todos los usuarios de la app verán estos ejercicios.' : 'Solo tú podrás ver y usar estos ejercicios.'}
+            </p>
+          </div>
+          
+          <button 
+            onClick={() => setImportAsPublic(!importAsPublic)}
+            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${importAsPublic ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+          >
+            <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${importAsPublic ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
         <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4">
           <h2 className="text-sm font-bold text-emerald-500 mb-2">Formato requerido:</h2>
-          <p className="text-xs text-zinc-400 mb-3">Los ejercicios se importarán como <strong>Privados</strong> por defecto.</p>
           <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
 {`Nombre: Sentadilla Búlgara
 Grupo: Piernas
@@ -190,7 +211,6 @@ Descripcion: Mantén el torso recto...`}
             <textarea value={editingEx.description || ''} onChange={e => setEditingEx({ ...editingEx, description: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 resize-none h-32" placeholder="Mantén la espalda recta y saca pecho..." />
           </div>
 
-          {/* ---> NUEVO: Selector de Visibilidad <--- */}
           <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
             <div className="flex items-center justify-between">
               <div className="pr-4">
@@ -246,7 +266,6 @@ Descripcion: Mantén el torso recto...`}
       ) : (
         <div className="flex flex-col gap-3">
           {filteredExercises.map((ex) => {
-            // ---> NUEVO: Lógica visual y permisos <---
             const isOwner = ex.user_id === currentUser
             const isLegacyGlobal = !ex.user_id
             const canEdit = !activeSession && (isOwner || isLegacyGlobal)
@@ -263,8 +282,6 @@ Descripcion: Mantén el torso recto...`}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {ex.muscle_group && <p className="text-xs text-zinc-500 uppercase tracking-wider">{ex.muscle_group}</p>}
-                    
-                    {/* ---> NUEVO: Badges visuales <--- */}
                     {ex.is_public ? (
                       <span className="text-[9px] uppercase tracking-widest bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">Público</span>
                     ) : (
@@ -273,7 +290,6 @@ Descripcion: Mantén el torso recto...`}
                   </div>
                 </div>
 
-                {/* Si no es nuestro, ocultamos el botón de editar para no generar confusión */}
                 {canEdit && (
                   <button onClick={(e) => { e.stopPropagation(); setEditingEx(ex); setView('form'); }} className="p-3 text-zinc-500 hover:text-emerald-500">
                     <Edit2 size={18} />
@@ -286,7 +302,6 @@ Descripcion: Mantén el torso recto...`}
         </div>
       )}
 
-      {/* Al crear nuevo, lo hacemos Privado (false) por defecto */}
       {!activeSession && (
         <button 
           onClick={() => { setEditingEx({ name: '', muscle_group: '', description: '', image_url: '', is_public: false }); setView('form'); }}
