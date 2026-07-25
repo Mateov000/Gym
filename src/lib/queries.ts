@@ -68,6 +68,7 @@ export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWit
     .select(`
       id,
       start_time,
+      end_time,
       routine_id,
       routine_day_id,
       workout_sets (
@@ -155,6 +156,7 @@ export async function finishWorkoutSession({
     .insert({
       user_id: user.id,
       start_time: startTime,
+      end_time: new Date().toISOString(),
       routine_id: sessionOptions?.routine_id ?? null,
       routine_day_id: sessionOptions?.routine_day_id ?? null,
       disable_prs: sessionOptions?.disable_prs ?? false,
@@ -486,7 +488,7 @@ export async function fetchSessionById(id: string): Promise<WorkoutSessionWithSe
   const { data, error } = await supabase
     .from('workout_sessions')
     .select(`
-      id, start_time, routine_id, routine_day_id,
+      id, start_time, end_time, routine_id, routine_day_id,
       workout_sets ( id, exercise_id, routine_exercise_id, weight, reps, is_completed )
     `)
     .eq('id', id)

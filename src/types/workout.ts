@@ -70,6 +70,7 @@ export interface PersistedWorkoutSet {
 export interface WorkoutSessionWithSets {
   id: string
   start_time: string
+  end_time?: string | null
   routine_id?: string | null
   routine_day_id?: string | null
   workout_sets: PersistedWorkoutSet[] | null

@@ -1,14 +1,28 @@
 import { useEffect } from 'react'
-import { Dumbbell, Calendar, Clock, Play, Edit2 } from 'lucide-react' // Importamos Edit2
+import { Dumbbell, Calendar, Clock, Play, Edit2, Timer } from 'lucide-react' // <-- Añadido Timer
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWorkoutHistory } from '../lib/queries'
 import type { WorkoutSessionWithSets } from '../types/workout'
 
+// ---> NUEVA FUNCIÓN: Calculadora de Duración <---
+function formatDuration(start: string, end?: string | null) {
+  if (!end) return null
+  const diffMs = new Date(end).getTime() - new Date(start).getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  
+  if (diffMins < 1) return '< 1m'
+  
+  const hours = Math.floor(diffMins / 60)
+  const mins = diffMins % 60
+  
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
 export default function Feed() {
   const navigate = useNavigate()
-  
   const { activeSession, workoutExercises } = useWorkoutStore()
 
   const { data: sessions = [], isLoading } = useQuery<WorkoutSessionWithSets[]>({
@@ -60,40 +74,49 @@ export default function Feed() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {sessions.map((session: WorkoutSessionWithSets) => (
-            <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-bold text-zinc-100">Sesión Completada</h3>
-                
-                {/* Contenedor del badge de series y el botón de editar */}
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md text-xs font-bold border border-emerald-500/20">
-                    {session.workout_sets?.length || 0} series
-                  </span>
+          {sessions.map((session: WorkoutSessionWithSets) => {
+            const duration = formatDuration(session.start_time, session.end_time) // Calculamos la duración
+
+            return (
+              <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-bold text-zinc-100">Sesión Completada</h3>
                   
-                  {/* ---> NUEVO: Botón de Editar Entrenamiento <--- */}
-                  <button 
-                    onClick={() => navigate(`/session/${session.id}/edit`)}
-                    className="text-zinc-400 hover:text-emerald-500 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800 transition-colors active:scale-95"
-                    aria-label="Editar entrenamiento"
-                  >
-                    <Edit2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md text-xs font-bold border border-emerald-500/20">
+                      {session.workout_sets?.length || 0} series
+                    </span>
+                    <button 
+                      onClick={() => navigate(`/session/${session.id}/edit`)}
+                      className="text-zinc-400 hover:text-emerald-500 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800 transition-colors active:scale-95"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* ---> NUEVO: Bloque de Información Expandido <--- */}
+                <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400">
+                  <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg">
+                    <Calendar className="w-4 h-4 text-emerald-500" />
+                    <span>{new Date(session.start_time).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg">
+                    <Clock className="w-4 h-4 text-emerald-500" />
+                    <span>{new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </div>
+                  
+                  {/* Solo mostramos la duración si existe (los entrenamientos viejos no la tendrán) */}
+                  {duration && (
+                    <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg border border-zinc-800">
+                      <Timer className="w-4 h-4 text-emerald-500" />
+                      <span className="font-bold text-zinc-300">{duration}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              <div className="flex items-center gap-4 text-sm text-zinc-400">
-                <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg">
-                  <Calendar className="w-4 h-4 text-emerald-500" />
-                  <span>{new Date(session.start_time).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg">
-                  <Clock className="w-4 h-4 text-emerald-500" />
-                  <span>{new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

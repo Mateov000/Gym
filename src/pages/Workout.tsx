@@ -10,15 +10,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save } from 'lucide-react'
+import { Trash2, Save, Timer } from 'lucide-react' // <-- Añadido Timer
 
-// ---> NUEVO: Componente para editar la serie en vivo <---
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
   const [isEdited, setIsEdited] = useState(false)
 
-  // Si la serie cambia por otra razón, sincronizamos el input
   useEffect(() => {
     setWeight(set.weight)
     setReps(set.reps)
@@ -34,30 +32,15 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet }: any) {
     <div className="flex justify-between items-center bg-zinc-950 px-3 py-3 rounded-xl text-sm border border-zinc-800/50">
       <span className="text-zinc-500 font-medium whitespace-nowrap">Serie {index + 1}</span>
       <div className="flex items-center gap-1.5 ml-auto">
-        <input 
-          type="number" 
-          value={weight} 
-          onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} 
-          className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" 
-        />
+        <input type="number" value={weight} onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" />
         <span className="text-zinc-500 text-xs">kg</span>
         <span className="text-zinc-600">×</span>
-        <input 
-          type="number" 
-          value={reps} 
-          onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} 
-          className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" 
-        />
+        <input type="number" value={reps} onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" />
         <span className="text-zinc-500 text-xs">reps</span>
-        
         {isEdited ? (
-          <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95 transition-transform">
-            <Save size={16}/>
-          </button>
+          <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95 transition-transform"><Save size={16}/></button>
         ) : (
-          <button onClick={() => removeSet(exerciseId, index)} className="ml-2 text-red-500 hover:text-red-400 p-2 bg-red-500/10 rounded-lg transition-colors active:scale-95">
-            <Trash2 size={16} />
-          </button>
+          <button onClick={() => removeSet(exerciseId, index)} className="ml-2 text-red-500 hover:text-red-400 p-2 bg-red-500/10 rounded-lg transition-colors active:scale-95"><Trash2 size={16} /></button>
         )}
       </div>
     </div>
@@ -71,15 +54,9 @@ interface ExerciseTrackerProps {
   onSwapExercise: (targetExercise: Exercise) => void
 }
 
-const ExerciseTracker = ({
-  workoutEx,
-  defaultsMap,
-  swapCandidates,
-  onSwapExercise,
-}: ExerciseTrackerProps) => {
+const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
-  
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   const currentSetIndex = sets.length
 
@@ -93,16 +70,9 @@ const ExerciseTracker = ({
   const [showSwapList, setShowSwapList] = useState(false)
 
   useEffect(() => {
-    if (routineSpecificDefault) {
-      setWeight(routineSpecificDefault.weight)
-      setReps(routineSpecificDefault.reps)
-    } else if (predefinedSet) {
-      setWeight(predefinedSet.weight)
-      setReps(predefinedSet.reps)
-    } else if (globalDefault && currentSetIndex === 0) {
-      setWeight(globalDefault.weight)
-      setReps(globalDefault.reps)
-    }
+    if (routineSpecificDefault) { setWeight(routineSpecificDefault.weight); setReps(routineSpecificDefault.reps) } 
+    else if (predefinedSet) { setWeight(predefinedSet.weight); setReps(predefinedSet.reps) } 
+    else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
 
   const handleCheckIn = () => {
@@ -133,16 +103,7 @@ const ExerciseTracker = ({
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {sets.map((set, idx) => (
-            <ActiveSetRow 
-              key={idx} 
-              exerciseId={exercise.id} 
-              set={set} 
-              index={idx} 
-              updateSet={updateSet} 
-              removeSet={removeSet} 
-            />
-          ))}
+          {sets.map((set, idx) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} />)}
         </div>
       )}
 
@@ -153,20 +114,14 @@ const ExerciseTracker = ({
       
       <PlateMath weight={weight} />
       
-      <div className="mt-4">
-        <CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} />
-      </div>
+      <div className="mt-4"><CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} /></div>
 
       <div className="mt-4 border-t border-zinc-800 pt-4">
-        <button onClick={() => setShowSwapList((prev) => !prev)} className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700 active:scale-95 transition-transform">
-          Quick Swap
-        </button>
+        <button onClick={() => setShowSwapList((prev) => !prev)} className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700 active:scale-95 transition-transform">Quick Swap</button>
         {showSwapList && (
           <div className="mt-3 flex flex-wrap gap-2">
             {swapCandidates.length === 0 ? <span className="text-xs text-zinc-500">No hay alternativas.</span> : swapCandidates.slice(0, 5).map((candidate) => (
-              <button key={candidate.id} onClick={() => { onSwapExercise(candidate); setShowSwapList(false) }} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700">
-                {candidate.name}
-              </button>
+              <button key={candidate.id} onClick={() => { onSwapExercise(candidate); setShowSwapList(false) }} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700">{candidate.name}</button>
             ))}
           </div>
         )}
@@ -203,7 +158,6 @@ function getExplicitAlternatives(exercise: Exercise, catalog: Exercise[]) {
   const byCatalogIds = catalog.filter((item) => byIds.has(item.id))
   return [...(exercise.alternatives ?? []), ...byCatalogIds].filter((candidate) => candidate.id !== exercise.id)
 }
-
 function getSwapCandidates(exercise: Exercise, catalog: Exercise[]) {
   const explicit = getExplicitAlternatives(exercise, catalog)
   if (explicit.length > 0) return explicit
@@ -220,6 +174,33 @@ export default function Workout() {
   const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
   const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'quick-swap'], queryFn: fetchExercises })
   const defaultsMap = useMemo(() => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null), [recentSessions, activeSession?.routine_day_id])
+
+  // ---> NUEVO: Estado y Efecto para el Cronómetro en vivo <---
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    if (!activeSession?.start_time) return
+    const startTimeMs = new Date(activeSession.start_time).getTime()
+    
+    // Actualiza el reloj cada segundo
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTimeMs) / 1000))
+    }, 1000)
+    
+    // Llamada inicial para que no espere 1s en mostrar la hora real
+    setElapsed(Math.floor((Date.now() - startTimeMs) / 1000))
+
+    return () => clearInterval(interval)
+  }, [activeSession?.start_time])
+
+  // Formateador de segundos a MM:SS o HH:MM:SS
+  const formatTime = (secs: number) => {
+    const h = Math.floor(secs / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    const s = secs % 60
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
 
   const finishWorkoutMutation = useMutation({
     mutationFn: async () => {
@@ -238,24 +219,18 @@ export default function Workout() {
     onError: (error: any) => alert(`Error al guardar: ${error.message}`),
   })
 
-  const handleFinishWorkout = () => {
-    if (!activeSession) return
-    finishWorkoutMutation.mutate()
-  }
-
-  const handleAbandon = () => {
-    if (window.confirm('¿Estás seguro de abandonar este entrenamiento? Se perderán todas las series registradas hoy y no se guardará en tu historial.')) {
-      clearSession()
-      navigate('/')
-    }
-  }
-
   if (!activeSession) return <Navigate to="/exercises" replace />
 
   return (
     <div className="p-4 relative min-h-[80vh] pb-32">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Entrenamiento</h1>
+        
+        {/* ---> NUEVO: Etiqueta Visual del Cronómetro <--- */}
+        <div className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+          <Timer size={18} />
+          {formatTime(elapsed)}
+        </div>
       </div>
 
       {workoutExercises.length === 0 ? (
@@ -271,11 +246,11 @@ export default function Workout() {
           + Añadir otro ejercicio
         </button>
 
-        <button onClick={handleFinishWorkout} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform mt-4">
+        <button onClick={() => finishWorkoutMutation.mutate()} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform mt-4">
           {finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}
         </button>
 
-        <button onClick={handleAbandon} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform">
+        <button onClick={() => { if(window.confirm('¿Abandonar? Se perderán las series de hoy.')) { clearSession(); navigate('/') } }} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 font-bold p-4 rounded-xl active:scale-95 transition-transform">
           Abandonar Entrenamiento
         </button>
       </div>
