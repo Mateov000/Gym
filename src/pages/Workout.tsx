@@ -10,9 +10,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer } from 'lucide-react' // <-- Añadido Timer
+import { Trash2, Save, Timer, CheckCircle2 } from 'lucide-react' // <-- Añadimos CheckCircle2
 
-function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet }: any) {
+// ---> NUEVO: Añadido el prop "isExtra" para pintar de azul las series de más <---
+function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
   const [isEdited, setIsEdited] = useState(false)
@@ -29,14 +30,19 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet }: any) {
   }
 
   return (
-    <div className="flex justify-between items-center bg-zinc-950 px-3 py-3 rounded-xl text-sm border border-zinc-800/50">
-      <span className="text-zinc-500 font-medium whitespace-nowrap">Serie {index + 1}</span>
+    <div className={`flex justify-between items-center px-3 py-3 rounded-xl text-sm border ${isExtra ? 'bg-blue-500/5 border-blue-500/20' : 'bg-zinc-950 border-zinc-800/50'}`}>
+      <div className={`font-medium flex items-center gap-2 ${isExtra ? 'text-blue-400' : 'text-zinc-500'}`}>
+        <span className="whitespace-nowrap">Serie {index + 1}</span>
+        {isExtra && <span className="text-[9px] uppercase tracking-wider bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-bold">Extra</span>}
+      </div>
+      
       <div className="flex items-center gap-1.5 ml-auto">
-        <input type="number" value={weight} onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" />
+        <input type="number" value={weight} onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">kg</span>
         <span className="text-zinc-600">×</span>
-        <input type="number" value={reps} onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none focus:border-emerald-500 text-zinc-100 font-bold" />
+        <input type="number" value={reps} onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">reps</span>
+        
         {isEdited ? (
           <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95 transition-transform"><Save size={16}/></button>
         ) : (
@@ -58,7 +64,15 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { exercise, sets } = workoutEx
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
+  
+  // ---> NUEVO: Lógica de Objetivo de Series <---
+  // Buscamos cuántas series tenías programadas (o asumimos 3 si es un ejercicio suelto sin rutina)
+  const targetSets = resolvedConfig.sets_config?.length > 0 
+    ? resolvedConfig.sets_config.length 
+    : ((workoutEx.meta as any)?.target_sets || 3);
+  
   const currentSetIndex = sets.length
+  const isCompletedVisual = currentSetIndex >= targetSets // ¿Ya cumplimos el objetivo?
 
   const routineSpecificDefault = defaultsMap.get(`${workoutEx.meta?.routine_exercise_id}-set-${currentSetIndex}`)
   const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
@@ -89,21 +103,50 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
+    // ---> NUEVO: El contenedor brilla en verde si ya cumpliste la meta <---
+    <div className={`bg-zinc-900 border rounded-2xl p-5 mb-6 transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'}`}>
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-xl font-bold text-emerald-500">{exercise.name}</h2>
+          {/* El título agrega un Check verde si ya terminaste */}
+          <h2 className={`text-xl font-bold flex items-center gap-2 ${isCompletedVisual ? 'text-emerald-400' : 'text-emerald-500'}`}>
+            {exercise.name}
+            {isCompletedVisual && <CheckCircle2 className="text-emerald-500 w-5 h-5" />}
+          </h2>
           <div className="flex gap-2 mt-1">
             {workoutEx.meta?.superset_id && <span className="text-[10px] uppercase tracking-wide bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-0.5">Superset</span>}
             {workoutEx.meta?.set_type === 'drop_set' && <span className="text-[10px] uppercase tracking-wide bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded px-2 py-0.5">Drop set</span>}
           </div>
         </div>
-        <span className="text-sm text-zinc-400 font-bold">{sets.length} series</span>
+        
+        {/* Etiqueta de X / Y series. Se vuelve verde al completar. */}
+        <div className={`text-sm font-bold px-3 py-1 rounded-lg border transition-colors ${isCompletedVisual ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>
+          <span className={isCompletedVisual ? 'text-emerald-400' : 'text-zinc-100'}>{currentSetIndex}</span>
+          <span> / {targetSets} series</span>
+        </div>
       </div>
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {sets.map((set, idx) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} />)}
+          {sets.map((set, idx) => (
+            <ActiveSetRow 
+              key={idx} 
+              exerciseId={exercise.id} 
+              set={set} 
+              index={idx} 
+              updateSet={updateSet} 
+              removeSet={removeSet} 
+              isExtra={idx >= targetSets} // Le avisamos a la fila si es extra
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Separador visual si decides seguir haciendo series después de la meta */}
+      {isCompletedVisual && (
+        <div className="flex items-center gap-2 mb-4 mt-2 opacity-60">
+          <div className="h-px bg-zinc-700 flex-1"></div>
+          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Series Extra (Opcional)</span>
+          <div className="h-px bg-zinc-700 flex-1"></div>
         </div>
       )}
 
@@ -175,25 +218,21 @@ export default function Workout() {
   const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'quick-swap'], queryFn: fetchExercises })
   const defaultsMap = useMemo(() => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null), [recentSessions, activeSession?.routine_day_id])
 
-  // ---> NUEVO: Estado y Efecto para el Cronómetro en vivo <---
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
     if (!activeSession?.start_time) return
     const startTimeMs = new Date(activeSession.start_time).getTime()
     
-    // Actualiza el reloj cada segundo
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTimeMs) / 1000))
     }, 1000)
     
-    // Llamada inicial para que no espere 1s en mostrar la hora real
     setElapsed(Math.floor((Date.now() - startTimeMs) / 1000))
 
     return () => clearInterval(interval)
   }, [activeSession?.start_time])
 
-  // Formateador de segundos a MM:SS o HH:MM:SS
   const formatTime = (secs: number) => {
     const h = Math.floor(secs / 3600)
     const m = Math.floor((secs % 3600) / 60)
@@ -226,7 +265,6 @@ export default function Workout() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Entrenamiento</h1>
         
-        {/* ---> NUEVO: Etiqueta Visual del Cronómetro <--- */}
         <div className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
           <Timer size={18} />
           {formatTime(elapsed)}
