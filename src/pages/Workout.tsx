@@ -65,17 +65,23 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { showQuickCompleteButton } = useSettingsStore()
 
-  // ---> RESOLUCIÓN DEL EJERCICIO: Garantiza nombre e imagen desde el catálogo <---
-    // ---> RESOLUCIÓN DEL EJERCICIO: Garantiza nombre e imagen desde el catálogo <---
+    // ---> RESOLUCIÓN DEL EJERCICIO CON TIPADO SEGURO <---
   const rawEx = workoutEx.exercise
   const exercise = useMemo(() => {
-    // Buscamos el ID real sin importar dónde se haya guardado
     const targetId = rawEx?.id || (rawEx as any)?.exercise_id || (workoutEx as any).exercise_id
     const catalogMatch = allExercises.find(e => e.id === targetId)
     
     if (catalogMatch) return catalogMatch
-    if (rawEx && rawEx.name) return rawEx
-    return { id: targetId || '', name: rawEx?.name || 'Ejercicio' }
+    if (rawEx && rawEx.name) return rawEx as Exercise
+    
+    return { 
+      id: targetId || '', 
+      name: rawEx?.name || 'Ejercicio',
+      muscle_group: '',
+      image_url: '',
+      description: '',
+      config: null
+    } as Exercise
   }, [rawEx, (workoutEx as any).exercise_id, allExercises])
 
   const sets = workoutEx.sets || []
