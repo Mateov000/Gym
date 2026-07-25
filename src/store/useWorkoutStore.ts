@@ -101,7 +101,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
         isResting: false, 
         restEndsAt: null,
         workoutExercises: [] 
-      })
+      }),
 
       removeSet: (exerciseId, setIndex) => set((state) => {
         const updatedExercises = state.workoutExercises.map(ex => {
