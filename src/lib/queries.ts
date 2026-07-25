@@ -30,11 +30,16 @@ export async function fetchExercises(): Promise<Exercise[]> {
 }
 
 export async function createExercise(exerciseData: Partial<Exercise>) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
   const { data, error } = await supabase
     .from('exercises')
-    .insert(exerciseData)
+    // Inyectamos el ID del creador obligatoriamente
+    .insert({ ...exerciseData, user_id: user.id }) 
     .select()
     .single()
+    
   if (error) throw error
   return data
 }

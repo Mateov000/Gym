@@ -8,6 +8,8 @@ description?: string | null // <-- NUEVO
   alternative_exercise_ids?: string[] | null
   alternatives?: Exercise[]
   config?: ExerciseConfig | null
+  user_id?: string | null // <-- NUEVO
+  is_public?: boolean     // <-- NUEVO
 }
 
 export interface LoggedSet {
