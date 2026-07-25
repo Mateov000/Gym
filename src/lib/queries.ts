@@ -526,3 +526,36 @@ export async function deleteWorkoutSet(setId: string) {
   const { error } = await supabase.from('workout_sets').delete().eq('id', setId)
   if (error) throw error
 }
+
+export async function deleteAllWorkoutHistory() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuario no autenticado')
+
+  // 1. Buscamos todas las sesiones de este usuario
+  const { data: sessions, error: fetchErr } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('user_id', user.id)
+
+  if (fetchErr) throw fetchErr
+
+  if (sessions && sessions.length > 0) {
+    const sessionIds = sessions.map(s => s.id)
+    
+    // 2. Borramos primero todas las series (por si la BD no tiene cascada activa aquí)
+    const { error: setsErr } = await supabase
+      .from('workout_sets')
+      .delete()
+      .in('session_id', sessionIds)
+      
+    if (setsErr) throw setsErr
+
+    // 3. Finalmente borramos las sesiones
+    const { error: sessionErr } = await supabase
+      .from('workout_sessions')
+      .delete()
+      .in('id', sessionIds)
+
+    if (sessionErr) throw sessionErr
+  }
+}
