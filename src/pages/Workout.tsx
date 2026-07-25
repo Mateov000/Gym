@@ -65,8 +65,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { showQuickCompleteButton } = useSettingsStore()
 
-    // ---> RESOLUCIÓN DEL EJERCICIO CON TIPADO SEGURO <---
-  const rawEx = workoutEx.exercise
     // ---> RESOLUCIÓN TOTAL DEL EJERCICIO <---
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
