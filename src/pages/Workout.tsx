@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, Eye, EyeOff, Image, Dumbbell } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell } from 'lucide-react'
 
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }: any) {
   const [weight, setWeight] = useState(set.weight)
