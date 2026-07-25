@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom' // <-- Importamos Navigate
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
@@ -11,11 +11,9 @@ import Exercises from './pages/Exercises'
 import Routines from './pages/Routines'
 import RoutineBuilder from './pages/RoutineBuilder'
 import SharedRoutine from './pages/SharedRoutine'
-import RoutineEditor from './pages/RoutineEditor' // <-- IMPORTACIÓN DEL EDITOR
+import RoutineEditor from './pages/RoutineEditor'
 import SessionEditor from './pages/SessionEditor'
 
-
-// Pantalla de perfil con el botón para cerrar sesión
 const Profile = () => (
   <div className="p-6 text-zinc-100 pb-24">
     <h1 className="text-2xl font-bold mb-4">Perfil</h1>
@@ -49,6 +47,8 @@ export default function App() {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500">Cargando...</div>
   }
 
+  // Si no está logueado, mostramos Auth.
+  // La genialidad aquí es que la URL (ej. /routines/shared/...) se conserva en el navegador.
   if (!session) {
     return <Auth />
   }
@@ -56,7 +56,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* GRUPO 1: Pantallas con barra de navegación inferior */}
         <Route element={<Layout />}>
           <Route path="/" element={<Feed />} />
           <Route path="/routines" element={<Routines />} />
@@ -64,12 +63,15 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
         </Route>
         
-        {/* GRUPO 2: Pantallas a pantalla completa (sin barra de navegación) */}
         <Route path="/workout" element={<Workout />} />
         <Route path="/routines/new" element={<RoutineBuilder />} />
         <Route path="/routines/shared/:id" element={<SharedRoutine />} />
-        <Route path="/routines/:id/edit" element={<RoutineEditor />} /> {/* <-- NUEVA RUTA DEL EDITOR */}
+        <Route path="/routines/:id/edit" element={<RoutineEditor />} />
         <Route path="/session/:id/edit" element={<SessionEditor />} />
+
+        {/* ---> NUEVO: RUTA COMODÍN (CATCH-ALL) <--- */}
+        {/* Si el usuario ingresa a cualquier link que no definimos arriba, lo mandamos al inicio */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
