@@ -11,6 +11,7 @@ import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../li
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2 } from 'lucide-react' // <-- Añadimos CheckCircle2
+import { useSettingsStore } from '../store/useSettingsStore'
 
 // ---> NUEVO: Añadido el prop "isExtra" para pintar de azul las series de más <---
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }: any) {
@@ -62,6 +63,7 @@ interface ExerciseTrackerProps {
 
 const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
+  const { showQuickCompleteButton } = useSettingsStore()
   const { exercise, sets } = workoutEx
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
@@ -157,7 +159,22 @@ const ExerciseTracker = ({ workoutEx, defaultsMap, swapCandidates, onSwapExercis
       
       <PlateMath weight={weight} />
       
-      <div className="mt-4"><CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} /></div>
+      <div className="mt-4 flex gap-2">
+        <div className="flex-1">
+          <CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} />
+        </div>
+        
+        {/* ---> NUEVO: Botón rápido de completado <--- */}
+        {showQuickCompleteButton && !isCompleted && (
+          <button 
+            onClick={handleCheckIn}
+            className="w-16 h-16 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-2xl flex items-center justify-center active:bg-emerald-500/20 transition-colors flex-shrink-0"
+            aria-label="Completado rápido"
+          >
+            <Check size={28} strokeWidth={3} />
+          </button>
+        )}
+      </div>
 
       <div className="mt-4 border-t border-zinc-800 pt-4">
         <button onClick={() => setShowSwapList((prev) => !prev)} className="text-sm text-zinc-300 bg-zinc-800 px-3 py-2 rounded-lg border border-zinc-700 active:scale-95 transition-transform">Quick Swap</button>

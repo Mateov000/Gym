@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import type { Session } from '@supabase/supabase-js'
+import { Settings as SettingsIcon, LogOut } from 'lucide-react' // <-- Nuevos iconos
 
 import Auth from './pages/Auth'
 import Layout from './components/Layout'
@@ -13,24 +14,39 @@ import RoutineBuilder from './pages/RoutineBuilder'
 import SharedRoutine from './pages/SharedRoutine'
 import RoutineEditor from './pages/RoutineEditor'
 import SessionEditor from './pages/SessionEditor'
+import SettingsPage from './pages/Settings' // <-- Importamos la config
 
-const Profile = () => (
-  <div className="p-6 text-zinc-100 pb-24">
-    <h1 className="text-2xl font-bold mb-4">Perfil</h1>
-    <button 
-      onClick={() => supabase.auth.signOut()} 
-      className="bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 rounded-xl font-bold active:scale-95 transition-transform"
-    >
-      Cerrar Sesión
-    </button>
-  </div>
-)
+// ---> ACTUALIZADO: Perfil con botón de configuración <---
+const Profile = () => {
+  const navigate = useNavigate()
+  
+  return (
+    <div className="p-6 text-zinc-100 pb-24">
+      <h1 className="text-2xl font-bold mb-6">Perfil</h1>
+      
+      <div className="flex flex-col gap-4">
+        <button 
+          onClick={() => navigate('/settings')}
+          className="w-full bg-zinc-900 border border-zinc-800 text-zinc-100 p-4 rounded-xl font-bold active:scale-95 transition-transform flex items-center gap-3"
+        >
+          <SettingsIcon size={20} className="text-emerald-500" />
+          Configuración
+        </button>
 
-// Envoltorio para proteger las páginas que SÍ requieren login obligatorio
+        <button 
+          onClick={() => supabase.auth.signOut()} 
+          className="w-full bg-red-500/10 text-red-500 border border-red-500/20 p-4 rounded-xl font-bold active:scale-95 transition-transform flex items-center gap-3"
+        >
+          <LogOut size={20} />
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
-  if (!session) {
-    return <Auth />
-  }
+  if (!session) return <Auth />
   return <>{children}</>
 }
 
@@ -58,10 +74,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* RUTA PÚBLICA: Cualquiera con el link la puede abrir sin estar logueado */}
         <Route path="/routines/shared/:id" element={<SharedRoutine />} />
 
-        {/* RUTAS PRIVADAS: Requieren estar autenticado */}
         <Route element={<ProtectedRoute session={session}><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Feed />} />
           <Route path="/routines" element={<Routines />} />
@@ -73,8 +87,8 @@ export default function App() {
         <Route path="/routines/new" element={<ProtectedRoute session={session}><RoutineBuilder /></ProtectedRoute>} />
         <Route path="/routines/:id/edit" element={<ProtectedRoute session={session}><RoutineEditor /></ProtectedRoute>} />
         <Route path="/session/:id/edit" element={<ProtectedRoute session={session}><SessionEditor /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute session={session}><SettingsPage /></ProtectedRoute>} /> {/* <-- NUEVA RUTA */}
 
-        {/* CUALQUIER OTRA RUTA NO EXISTENTE: Redirige al inicio */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
