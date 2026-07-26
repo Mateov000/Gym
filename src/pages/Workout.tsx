@@ -110,7 +110,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     setExerciseUnit       // <-- Añadido
   } = useSettingsStore()
   
-  const queryClient = useQueryClient()
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
