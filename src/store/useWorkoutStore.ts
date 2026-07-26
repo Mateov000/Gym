@@ -12,6 +12,7 @@ interface WorkoutStore {
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
   replaceExercise: (oldExerciseId: string, newExercise: Exercise) => void
   removeExercise: (exerciseId: string) => void
+  updateExerciseUnit: (exerciseId: string, unit: string) => void // <-- NUEVO
   addSet: (exerciseId: string, weight: number, reps: number, meta?: Partial<LoggedSet>) => void
   completeSet: (restTimeSeconds?: number) => void
   removeSet: (exerciseId: string, setIndex: number) => void
@@ -43,7 +44,6 @@ export const useWorkoutStore = create<WorkoutStore>()(
           
           const loadedExercises = rawExercises.map((rx: any) => {
             const baseExercise = rx.exercise || rx
-            // CORRECCIÓN: Extraemos el ID del ejercicio primero
             const realId = baseExercise.exercise_id || rx.exercise_id || baseExercise.id
             const targetReps = rx.target_reps || rx.config?.sets_config?.[0]?.reps || 10
             
@@ -98,6 +98,18 @@ export const useWorkoutStore = create<WorkoutStore>()(
             (ex) => ex.exercise.id !== exerciseId
           ),
         })),
+
+      // ---> NUEVO: Función para guardar la unidad activa del ejercicio <---
+      updateExerciseUnit: (exerciseId, unit) =>
+        set((state) => {
+          const updated = state.workoutExercises.map((ex) => {
+            if (ex.exercise.id === exerciseId) {
+              return { ...ex, meta: { ...ex.meta, active_unit: unit } }
+            }
+            return ex
+          })
+          return { workoutExercises: updated }
+        }),
 
       addSet: (exerciseId, weight, reps, meta) =>
         set((state) => {

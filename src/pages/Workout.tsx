@@ -8,12 +8,14 @@ import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
+// AÑADIMOS updateExercise a la importación
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession, updateExercise } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X } from 'lucide-react' // AÑADIDO X
 
-function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }: any) {
+// ---> Añadimos currentUnit como prop <---
+function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, currentUnit }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
   const [isEdited, setIsEdited] = useState(false)
@@ -38,7 +40,10 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra }:
       
       <div className="flex items-center gap-1.5 ml-auto">
         <input type="number" value={weight} onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
-        <span className="text-zinc-500 text-xs">kg</span>
+        
+        {/* ---> USAMOS LA UNIDAD DINÁMICA AQUÍ <--- */}
+        <span className="text-zinc-500 text-xs w-6 truncate">{currentUnit}</span>
+        
         <span className="text-zinc-600">×</span>
         <input type="number" value={reps} onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">reps</span>
@@ -62,19 +67,16 @@ interface ExerciseTrackerProps {
 }
 
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
-  const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
+  const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit } = useWorkoutStore()
   const { showQuickCompleteButton } = useSettingsStore()
+  const queryClient = useQueryClient()
 
-  // ---> RESOLUCIÓN TOTAL DEL EJERCICIO <---
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
-    
-    // 1. Si el objeto ya tiene un nombre válido, lo usamos directo
     if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio' && rawEx.name !== 'Ejercicio sin nombre') {
       return rawEx as Exercise
     }
 
-    // 2. CORRECCIÓN: Priorizamos 'exercise_id' para no confundirlo con el ID de la tabla pivot
     const targetId = 
       (rawEx as any)?.exercise_id || 
       (workoutEx as any).exercise_id ||
@@ -86,7 +88,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       if (catalogMatch) return catalogMatch
     }
 
-    // 3. Si de plano no se encontró, devolvemos un objeto seguro
     return { 
       id: targetId || '', 
       name: (rawEx as any)?.name || 'Ejercicio sin nombre',
@@ -100,7 +101,14 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const sets = workoutEx.sets || []
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
-  // Lógica de Objetivo de Series
+  // ---> LÓGICA DE UNIDADES DINÁMICAS <---
+  const currentUnit = workoutEx.meta?.active_unit || resolvedConfig.weight_unit || 'kg'
+  const customUnits = resolvedConfig.custom_units || []
+  const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...customUnits]))
+  
+  const [isCreatingUnit, setIsCreatingUnit] = useState(false)
+  const [newUnitText, setNewUnitText] = useState('')
+
   const targetSets = resolvedConfig.sets_config?.length > 0 
     ? resolvedConfig.sets_config.length 
     : ((workoutEx.meta as any)?.target_sets || 3);
@@ -116,8 +124,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
   const [isCompleted, setIsCompleted] = useState(false)
   const [showSwapList, setShowSwapList] = useState(false)
-  
-  // ---> NUEVO: Estado para alternar la visualización de la imagen/GIF <---
   const [showImage, setShowImage] = useState(false)
 
   useEffect(() => {
@@ -125,6 +131,28 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     else if (predefinedSet) { setWeight(predefinedSet.weight); setReps(predefinedSet.reps) } 
     else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
+
+  const updateExConfigMutation = useMutation({
+     mutationFn: async ({ id, config }: { id: string, config: any }) => updateExercise(id, { config }),
+     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
+  })
+
+  // Guarda la nueva unidad inventada en el catálogo y en la sesión actual
+  const handleSaveNewUnit = () => {
+    if (newUnitText && newUnitText.trim()) {
+      const cleanUnit = newUnitText.trim().toLowerCase()
+      updateExerciseUnit(exercise.id, cleanUnit)
+
+      const currentConfig = exercise.config || {}
+      const newConfig = {
+        ...currentConfig,
+        custom_units: [...(currentConfig.custom_units || []), cleanUnit]
+      }
+      updateExConfigMutation.mutate({ id: exercise.id, config: newConfig })
+    }
+    setIsCreatingUnit(false)
+    setNewUnitText('')
+  }
 
   const handleCheckIn = () => {
     addSet(exercise.id, weight, reps, {
@@ -143,7 +171,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     <div className={`bg-zinc-900 border rounded-2xl p-5 mb-6 transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'}`}>
       <div className="flex justify-between items-start mb-4">
         <div>
-          {/* ---> NOMBRE DEL EJERCICIO <--- */}
           <h2 className={`text-xl font-bold flex items-center gap-2 ${isCompletedVisual ? 'text-emerald-400' : 'text-emerald-500'}`}>
             {exercise.name || 'Ejercicio'}
             {isCompletedVisual && <CheckCircle2 className="text-emerald-500 w-5 h-5 flex-shrink-0" />}
@@ -160,7 +187,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
         
         <div className="flex items-center gap-2">
-          {/* ---> NUEVO: Botón para Ver/Ocultar Demo Imagen <--- */}
           <button
             onClick={() => setShowImage(!showImage)}
             className={`p-2 rounded-xl border transition-colors flex items-center gap-1.5 text-xs font-bold ${
@@ -168,13 +194,11 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
                 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
                 : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
             }`}
-            title={showImage ? "Ocultar imagen" : "Ver imagen"}
           >
             {showImage ? <EyeOff size={16} /> : <Image size={16} />}
             <span className="hidden sm:inline">{showImage ? 'Ocultar Demo' : 'Ver Demo'}</span>
           </button>
 
-          {/* Marcador X / Y series */}
           <div className={`text-sm font-bold px-3 py-1.5 rounded-xl border transition-colors ${isCompletedVisual ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>
             <span className={isCompletedVisual ? 'text-emerald-400' : 'text-zinc-100'}>{currentSetIndex}</span>
             <span> / {targetSets} series</span>
@@ -182,7 +206,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
       </div>
 
-      {/* ---> NUEVO: Desplegable de Imagen / GIF del Ejercicio <--- */}
       {showImage && (
         <div className="mb-5 bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden p-3 flex flex-col items-center justify-center animate-in fade-in duration-200">
           {exercise.image_url ? (
@@ -197,7 +220,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
           ) : (
             <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
               <Dumbbell size={24} className="text-zinc-700" />
-              Este ejercicio no tiene imagen o GIF asignado en el catálogo.
+              Este ejercicio no tiene imagen o GIF asignado.
             </div>
           )}
           {exercise.description && (
@@ -219,25 +242,50 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
               updateSet={updateSet} 
               removeSet={removeSet} 
               isExtra={idx >= targetSets}
+              currentUnit={currentUnit} /* Le pasamos la unidad */
             />
           ))}
         </div>
       )}
 
-      {isCompletedVisual && (
-        <div className="flex items-center gap-2 mb-4 mt-2 opacity-60">
-          <div className="h-px bg-zinc-700 flex-1"></div>
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Series Extra (Opcional)</span>
-          <div className="h-px bg-zinc-700 flex-1"></div>
-        </div>
-      )}
+      {/* ---> NUEVO: Selector de Unidad Dinámico <--- */}
+      <div className="flex items-center justify-between mb-3 mt-4 px-1">
+        <span className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Unidad</span>
+        {isCreatingUnit ? (
+          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
+            <input 
+              autoFocus 
+              type="text" 
+              value={newUnitText} 
+              onChange={e => setNewUnitText(e.target.value)} 
+              className="bg-zinc-950 border border-emerald-500 rounded-lg px-2 py-1.5 text-xs text-zinc-100 w-24 outline-none" 
+              placeholder="ej. placas" 
+            />
+            <button onClick={handleSaveNewUnit} className="text-emerald-500 bg-emerald-500/10 p-1.5 rounded-md active:scale-95"><Check size={14}/></button>
+            <button onClick={() => setIsCreatingUnit(false)} className="text-zinc-500 bg-zinc-800 p-1.5 rounded-md active:scale-95"><X size={14}/></button>
+          </div>
+        ) : (
+          <select
+            value={currentUnit}
+            onChange={(e) => {
+              if (e.target.value === 'NEW') setIsCreatingUnit(true)
+              else updateExerciseUnit(exercise.id, e.target.value)
+            }}
+            className="bg-zinc-950 border border-zinc-800 text-emerald-400 font-bold text-xs rounded-lg px-2 py-1.5 outline-none focus:border-emerald-500"
+          >
+            {allAvailableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+            <option value="NEW">+ Crear unidad...</option>
+          </select>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <SmartStepper label={`Peso (Serie ${currentSetIndex + 1})`} value={weight} step={resolvedConfig.stepper_increment} unit={resolvedConfig.weight_unit} onChange={setWeight} />
+        <SmartStepper label={`Peso (${currentUnit})`} value={weight} step={resolvedConfig.stepper_increment} unit={currentUnit} onChange={setWeight} />
         <SmartStepper label={`Reps (Serie ${currentSetIndex + 1})`} value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
       
-      <PlateMath weight={weight} />
+      {/* Ocultar discos si no usamos kg o lbs */}
+      {(currentUnit === 'kg' || currentUnit === 'lbs') && <PlateMath weight={weight} />}
       
       <div className="mt-4 flex gap-2">
         <div className="flex-1">

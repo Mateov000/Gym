@@ -2,14 +2,14 @@ export interface Exercise {
   id: string
   name: string
   muscle_group: string | null
-description?: string | null // <-- NUEVO
-  image_url?: string | null   // <-- NUEVO
+  description?: string | null 
+  image_url?: string | null   
 
   alternative_exercise_ids?: string[] | null
   alternatives?: Exercise[]
   config?: ExerciseConfig | null
-  user_id?: string | null // <-- NUEVO
-  is_public?: boolean     // <-- NUEVO
+  user_id?: string | null 
+  is_public?: boolean     
 }
 
 export interface LoggedSet {
@@ -26,12 +26,13 @@ export interface ExerciseConfig {
   stepper_increment?: number
   rest_time_seconds?: number
   use_rir?: boolean
-  weight_unit?: 'kg' | 'lbs' | 'bodyweight'
+  weight_unit?: string // <--- AHORA ACEPTA CUALQUIER TEXTO
+  custom_units?: string[] // <--- NUEVO: Para guardar unidades creadas
   bar_weight?: number
   available_plates?: number[]
   show_images?: boolean
   show_google_search?: boolean
-sets_config?: { reps: number; weight: number }[]
+  sets_config?: { reps: number; weight: number }[]
 }
 
 export interface WorkoutSessionOptions {
@@ -50,6 +51,7 @@ export interface WorkoutExerciseMeta {
   pr_mode?: 'global' | 'fixed' | 'opt_out'
   pr_fixed_weight?: number | null
   config?: ExerciseConfig | null
+  active_unit?: string // <--- NUEVO: La unidad activa durante el entrenamiento
 }
 
 export interface WorkoutExercise {
@@ -58,7 +60,6 @@ export interface WorkoutExercise {
   meta?: WorkoutExerciseMeta
 }
 
-// ---> ACTUALIZADO: Agregamos routine_exercise_id <---
 export interface PersistedWorkoutSet {
   id?: string
   exercise_id: string
@@ -68,7 +69,6 @@ export interface PersistedWorkoutSet {
   is_completed: boolean
 }
 
-// ---> ACTUALIZADO: Agregamos IDs de la rutina <---
 export interface WorkoutSessionWithSets {
   id: string
   start_time: string
