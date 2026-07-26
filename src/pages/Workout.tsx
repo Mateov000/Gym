@@ -65,20 +65,20 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const { addSet, completeSet, removeSet, updateSet } = useWorkoutStore()
   const { showQuickCompleteButton } = useSettingsStore()
 
-    // ---> RESOLUCIÓN TOTAL DEL EJERCICIO <---
+  // ---> RESOLUCIÓN TOTAL DEL EJERCICIO <---
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
     
     // 1. Si el objeto ya tiene un nombre válido, lo usamos directo
-    if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio') {
+    if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio' && rawEx.name !== 'Ejercicio sin nombre') {
       return rawEx as Exercise
     }
 
-    // 2. Si no, buscamos por ID en todas las variantes posibles (id, exercise_id)
+    // 2. CORRECCIÓN: Priorizamos 'exercise_id' para no confundirlo con el ID de la tabla pivot
     const targetId = 
-      (rawEx as any)?.id || 
       (rawEx as any)?.exercise_id || 
       (workoutEx as any).exercise_id ||
+      (rawEx as any)?.id || 
       (workoutEx as any).id
 
     if (targetId) {
@@ -86,7 +86,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       if (catalogMatch) return catalogMatch
     }
 
-    // 3. Si de plano no se encontró, devolvemos un objeto seguro pero con la pista del ID por si acaso
+    // 3. Si de plano no se encontró, devolvemos un objeto seguro
     return { 
       id: targetId || '', 
       name: (rawEx as any)?.name || 'Ejercicio sin nombre',

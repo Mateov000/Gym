@@ -43,8 +43,8 @@ export const useWorkoutStore = create<WorkoutStore>()(
           
           const loadedExercises = rawExercises.map((rx: any) => {
             const baseExercise = rx.exercise || rx
-            // Normalizamos el ID para que nunca sea undefined
-            const realId = baseExercise.id || baseExercise.exercise_id || rx.exercise_id
+            // CORRECCIÓN: Extraemos el ID del ejercicio primero
+            const realId = baseExercise.exercise_id || rx.exercise_id || baseExercise.id
             const targetReps = rx.target_reps || rx.config?.sets_config?.[0]?.reps || 10
             
             return {
