@@ -91,6 +91,7 @@ export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWit
         routine_exercise_id,
         weight,
         reps,
+        unit,
         is_completed
       )
     `)
@@ -187,6 +188,7 @@ export async function finishWorkoutSession({
       exercise_id: workoutEx.exercise.id,
       weight: set.weight,
       reps: set.reps,
+      unit: set.unit || 'kg', // <--- NUEVO: Guardamos la unidad local en DB
       is_completed: true,
       routine_exercise_id: set.routine_exercise_id ?? workoutEx.meta?.routine_exercise_id ?? null,
       superset_id: set.superset_id ?? workoutEx.meta?.superset_id ?? null,
@@ -503,7 +505,7 @@ export async function fetchSessionById(id: string): Promise<WorkoutSessionWithSe
     .from('workout_sessions')
     .select(`
       id, start_time, end_time, routine_id, routine_day_id,
-      workout_sets ( id, exercise_id, routine_exercise_id, weight, reps, is_completed )
+      workout_sets ( id, exercise_id, routine_exercise_id, weight, reps, unit, is_completed )
     `)
     .eq('id', id)
     .single()

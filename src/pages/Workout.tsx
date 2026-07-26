@@ -8,11 +8,12 @@ import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession} from '../lib/queries'
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
 
+// ---> Función de Búsqueda de Camino Matemático (BFS) <---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
   if (fromUnit === toUnit) return value;
   if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
@@ -37,6 +38,7 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
     if (unit === toUnit) {
+      // Magia: Redondeamos el resultado convertido al 0.25 más cercano
       return Math.round(val * 4) / 4;
     }
     for (const neighbor of (graph[unit] || [])) {
@@ -46,6 +48,7 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
       }
     }
   }
+  // Si no hay conexión matemática, devolvemos el valor intacto
   return Math.round(value * 4) / 4;
 }
 
@@ -106,10 +109,9 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     setRoutineNote, 
     globalCustomUnits, 
     addGlobalCustomUnit,
-    exerciseUnits,        // <-- Añadido
-    setExerciseUnit       // <-- Añadido
+    exerciseUnits,
+    setExerciseUnit
   } = useSettingsStore()
-  
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
@@ -129,8 +131,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
   const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
-  
-  // ---> MAGIA: Lee la unidad guardada para este ejercicio, y si no hay, cae en el default de configuración <---
   const currentUnit = workoutEx.meta?.active_unit || exerciseUnits[routineExId] || resolvedConfig.weight_unit || 'kg'
   
   const customUnitsLegacy = resolvedConfig.custom_units || [] 
@@ -190,6 +190,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       set_type: workoutEx.meta?.set_type ?? 'normal',
       pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out',
       pr_fixed_weight: workoutEx.meta?.pr_fixed_weight,
+      unit: currentUnit // <--- NUEVO: Inyectamos la unidad en el historial para guardarla en Supabase
     })
     setIsCompleted(true)
     completeSet(resolvedConfig.rest_time_seconds)
@@ -233,6 +234,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
       )}
 
+      {/* ---> CAJA DE NOTAS PERSISTENTE <--- */}
       <div className="mb-5">
         <div className="relative">
           <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />

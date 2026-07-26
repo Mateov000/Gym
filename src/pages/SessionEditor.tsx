@@ -10,7 +10,7 @@ export default function SessionEditor() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   
-  // Extraemos la memoria de las unidades para inyectarla en cada serie
+  // Extraemos la memoria de las unidades por si alguna serie vieja en DB viene nula
   const { exerciseUnits } = useSettingsStore()
 
   const { data: session, isLoading: sessionLoading } = useQuery({
@@ -93,8 +93,8 @@ export default function SessionEditor() {
                     index={idx} 
                     onUpdate={updateSetMutation.mutate} 
                     onDelete={deleteSetMutation.mutate} 
-                    // ---> LE PASAMOS LA UNIDAD DINÁMICA <---
-                    unit={exerciseUnits[set.routine_exercise_id || set.exercise_id] || 'kg'}
+                    // ---> AHORA LEE LA UNIDAD GUARDADA INMUTABLE, O USA EL BACKUP LOCAL <---
+                    unit={set.unit || exerciseUnits[set.routine_exercise_id || set.exercise_id] || 'kg'}
                   />
                 ))}
               </div>

@@ -15,6 +15,7 @@ export interface Exercise {
 export interface LoggedSet {
   weight: number
   reps: number
+  unit?: string // <--- NUEVO: La unidad se pega a la serie
   routine_exercise_id?: string
   superset_id?: string | null
   set_type?: 'normal' | 'drop_set'
@@ -66,6 +67,7 @@ export interface PersistedWorkoutSet {
   routine_exercise_id?: string | null
   weight: number
   reps: number
+  unit?: string // <--- NUEVO: La unidad viene de la BD
   is_completed: boolean
 }
 
