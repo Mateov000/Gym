@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale } from 'lucide-react'
+import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { deleteAllWorkoutHistory } from '../lib/queries'
@@ -11,22 +11,36 @@ export default function Settings() {
   const { 
     showQuickCompleteButton, 
     setShowQuickCompleteButton,
+    globalCustomUnits,
+    addGlobalCustomUnit,
+    removeGlobalCustomUnit,
     equivalencies,
     addEquivalency,
     removeEquivalency
   } = useSettingsStore()
 
-  // Estados para añadir nueva equivalencia
-  const [newUnitFrom, setNewUnitFrom] = useState('')
+  // Base para los desplegables
+  const allUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...globalCustomUnits]))
+
+  // Estados
+  const [newCustomUnit, setNewCustomUnit] = useState('')
+  const [newUnitFrom, setNewUnitFrom] = useState('kg')
   const [newEqValue, setNewEqValue] = useState('')
-  const [newUnitTo, setNewUnitTo] = useState('')
+  const [newUnitTo, setNewUnitTo] = useState('lbs')
+
+  const handleAddCustomUnit = () => {
+    if (newCustomUnit && newCustomUnit.trim()) {
+      addGlobalCustomUnit(newCustomUnit.trim().toLowerCase())
+      setNewCustomUnit('')
+    }
+  }
 
   const handleAddEquivalency = () => {
-    if (newUnitFrom && newEqValue && newUnitTo) {
-      addEquivalency(newUnitFrom.trim().toLowerCase(), newUnitTo.trim().toLowerCase(), parseFloat(newEqValue))
-      setNewUnitFrom('')
+    if (newUnitFrom && newEqValue && newUnitTo && newUnitFrom !== newUnitTo) {
+      addEquivalency(newUnitFrom, newUnitTo, parseFloat(newEqValue))
       setNewEqValue('')
-      setNewUnitTo('')
+    } else if (newUnitFrom === newUnitTo) {
+      alert("No puedes crear una equivalencia entre la misma unidad.")
     }
   }
 
@@ -66,14 +80,56 @@ export default function Settings() {
           </button>
         </div>
 
-        {/* ---> NUEVA SECCIÓN: CONVERSOR UNIVERSAL <--- */}
+        {/* ---> NUEVA SECCIÓN: GESTIÓN DE UNIDADES <--- */}
+        <div className="border-t border-zinc-800 pt-6 mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <Tag size={18} className="text-emerald-500" />
+            <p className="font-bold text-zinc-100">Mis Unidades Personalizadas</p>
+          </div>
+          <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+            Las unidades que creas en tus entrenamientos se guardan aquí.
+          </p>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            {globalCustomUnits.map((unit) => (
+              <div key={unit} className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-lg">
+                <span className="text-sm font-bold text-zinc-300">{unit}</span>
+                <button onClick={() => removeGlobalCustomUnit(unit)} className="text-red-500 hover:text-red-400">
+                  <X size={14} className="lucide lucide-x" />
+                </button>
+              </div>
+            ))}
+            {globalCustomUnits.length === 0 && (
+              <p className="text-xs text-zinc-600 italic py-2 w-full">No has creado unidades personalizadas.</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              value={newCustomUnit}
+              onChange={(e) => setNewCustomUnit(e.target.value)}
+              placeholder="Ej: bandas" 
+              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm outline-none focus:border-emerald-500"
+            />
+            <button 
+              onClick={handleAddCustomUnit}
+              disabled={!newCustomUnit}
+              className="bg-emerald-500 text-zinc-950 px-4 rounded-xl disabled:opacity-50 active:scale-95 flex items-center justify-center font-bold"
+            >
+              Añadir
+            </button>
+          </div>
+        </div>
+
+        {/* ---> SECCIÓN: EQUIVALENCIAS <--- */}
         <div className="border-t border-zinc-800 pt-6">
           <div className="flex items-center gap-2 mb-2">
             <Scale size={18} className="text-emerald-500" />
-            <p className="font-bold text-zinc-100">Equivalencia de Unidades</p>
+            <p className="font-bold text-zinc-100">Equivalencias Matemáticas</p>
           </div>
           <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-            Dile a la app a cuánto equivale tu unidad (Ej: 1 placa = 15 lbs). La app cruzará estos datos para hacer conversiones exactas entre cualquier unidad.
+            Relaciona cualquier unidad entre sí. La app usará esto para convertir tus pesos exactos al vuelo.
           </p>
 
           <div className="space-y-3 mb-4">
@@ -98,32 +154,36 @@ export default function Settings() {
 
           <div className="flex gap-2">
             <div className="flex items-center text-zinc-500 font-bold">1</div>
-            <input 
-              type="text" 
+            <select 
               value={newUnitFrom}
               onChange={(e) => setNewUnitFrom(e.target.value)}
-              placeholder="placa" 
-              className="w-[30%] bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-3 text-sm outline-none focus:border-emerald-500 text-center"
-            />
+              className="w-[30%] bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-xs outline-none focus:border-emerald-500 text-center text-zinc-200"
+            >
+              {allUnits.map(u => <option key={`from-${u}`} value={u}>{u}</option>)}
+            </select>
+
             <div className="flex items-center text-zinc-500 font-bold">=</div>
+            
             <input 
               type="number"
               step="any" 
               value={newEqValue}
               onChange={(e) => setNewEqValue(e.target.value)}
-              placeholder="15" 
-              className="w-16 bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-3 text-sm text-center outline-none focus:border-emerald-500"
+              placeholder="0.0" 
+              className="w-16 bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-sm text-center outline-none focus:border-emerald-500"
             />
-            <input 
-              type="text" 
+            
+            <select 
               value={newUnitTo}
               onChange={(e) => setNewUnitTo(e.target.value)}
-              placeholder="lbs" 
-              className="w-[30%] bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-3 text-sm outline-none focus:border-emerald-500 text-center"
-            />
+              className="w-[30%] bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-xs outline-none focus:border-emerald-500 text-center text-zinc-200"
+            >
+              {allUnits.map(u => <option key={`to-${u}`} value={u}>{u}</option>)}
+            </select>
+
             <button 
               onClick={handleAddEquivalency}
-              disabled={!newUnitFrom || !newEqValue || parseFloat(newEqValue) <= 0 || !newUnitTo}
+              disabled={!newEqValue || parseFloat(newEqValue) <= 0 || newUnitFrom === newUnitTo}
               className="bg-emerald-500 text-zinc-950 p-3 rounded-xl disabled:opacity-50 active:scale-95 flex-1 flex justify-center"
             >
               <Plus size={20} />
@@ -141,7 +201,7 @@ export default function Settings() {
           <div>
             <p className="font-bold text-zinc-100">Reiniciar Progreso</p>
             <p className="text-xs text-red-400/80 mt-1 leading-relaxed mb-4">
-              Elimina todo tu historial de entrenamientos. Mantendrás tus ejercicios y plantillas de rutinas, pero tu muro principal volverá a estar vacío.
+              Elimina todo tu historial de entrenamientos. Mantendrás tus ejercicios y plantillas de rutinas.
             </p>
             <button 
               onClick={() => {if (window.confirm('🚨 ¿ESTÁS SEGURO?\n\nEsto eliminará TODOS tus entrenamientos pasados.')) deleteHistoryMutation.mutate()}}

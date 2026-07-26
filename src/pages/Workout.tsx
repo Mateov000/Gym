@@ -8,7 +8,7 @@ import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession, updateExercise } from '../lib/queries'
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
@@ -48,6 +48,7 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
       }
     }
   }
+  // Si no hay conexión matemática, devolvemos el valor intacto
   return Math.round(value * 4) / 4;
 }
 
@@ -101,8 +102,7 @@ interface ExerciseTrackerProps {
 
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit } = useWorkoutStore()
-  const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote } = useSettingsStore()
-  const queryClient = useQueryClient()
+  const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit } = useSettingsStore()
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
@@ -122,8 +122,10 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
   const currentUnit = workoutEx.meta?.active_unit || resolvedConfig.weight_unit || 'kg'
-  const customUnits = resolvedConfig.custom_units || []
-  const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...customUnits]))
+  const customUnitsLegacy = resolvedConfig.custom_units || [] // Por si quedaron guardadas a nivel de config
+  
+  // Base combinada de Unidades
+  const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...customUnitsLegacy, ...globalCustomUnits]))
   
   const [isCreatingUnit, setIsCreatingUnit] = useState(false)
   const [newUnitText, setNewUnitText] = useState('')
@@ -152,11 +154,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
 
-  const updateExConfigMutation = useMutation({
-     mutationFn: async ({ id, config }: { id: string, config: any }) => updateExercise(id, { config }),
-     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
-  })
-
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') {
       setIsCreatingUnit(true)
@@ -171,13 +168,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     if (newUnitText && newUnitText.trim()) {
       const cleanUnit = newUnitText.trim().toLowerCase()
       updateExerciseUnit(exercise.id, cleanUnit)
-
-      const currentConfig = exercise.config || {}
-      const newConfig = {
-        ...currentConfig,
-        custom_units: [...(currentConfig.custom_units || []), cleanUnit]
-      }
-      updateExConfigMutation.mutate({ id: exercise.id, config: newConfig })
+      addGlobalCustomUnit(cleanUnit) // Lo guardamos en la Bóveda Global
     }
     setIsCreatingUnit(false)
     setNewUnitText('')

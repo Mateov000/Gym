@@ -12,12 +12,17 @@ interface SettingsStore {
   showQuickCompleteButton: boolean
   setShowQuickCompleteButton: (val: boolean) => void
   
-  // ---> NUEVO: Grafo de Unidades Custom <---
+  // ---> NUEVO: Bóveda Global de Unidades Custom <---
+  globalCustomUnits: string[]
+  addGlobalCustomUnit: (unit: string) => void
+  removeGlobalCustomUnit: (unit: string) => void
+
+  // Grafo de Unidades Custom
   equivalencies: Equivalency[]
   addEquivalency: (from: string, to: string, multiplier: number) => void
   removeEquivalency: (id: string) => void
   
-  // ---> NUEVO: Memoria de Notas Persistentes <---
+  // Memoria de Notas Persistentes
   routineNotes: Record<string, string>
   setRoutineNote: (routineExId: string, note: string) => void
 }
@@ -28,6 +33,17 @@ export const useSettingsStore = create<SettingsStore>()(
       showQuickCompleteButton: true,
       setShowQuickCompleteButton: (val) => set({ showQuickCompleteButton: val }),
       
+      globalCustomUnits: [],
+      addGlobalCustomUnit: (unit) => set((state) => {
+        if (state.globalCustomUnits.includes(unit)) return state;
+        return { globalCustomUnits: [...state.globalCustomUnits, unit] }
+      }),
+      removeGlobalCustomUnit: (unit) => set((state) => ({
+        globalCustomUnits: state.globalCustomUnits.filter(u => u !== unit),
+        // Si borramos la unidad, borramos también las equivalencias que dependían de ella
+        equivalencies: state.equivalencies.filter(eq => eq.from !== unit && eq.to !== unit)
+      })),
+
       equivalencies: [],
       addEquivalency: (from, to, multiplier) => 
         set((state) => ({
