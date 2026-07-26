@@ -8,7 +8,7 @@ import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession, updateExercise } from '../lib/queries'
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession} from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
@@ -161,11 +161,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     else if (predefinedSet) { setWeight(predefinedSet.weight); setReps(predefinedSet.reps) } 
     else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
-
-  const updateExConfigMutation = useMutation({
-     mutationFn: async ({ id, config }: { id: string, config: any }) => updateExercise(id, { config }),
-     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
-  })
 
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') {
