@@ -13,7 +13,6 @@ import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
 
-// ---> Función de Búsqueda de Camino Matemático (BFS) <---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
   if (fromUnit === toUnit) return value;
   if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
@@ -38,7 +37,6 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
     if (unit === toUnit) {
-      // Magia: Redondeamos el resultado convertido al 0.25 más cercano
       return Math.round(val * 4) / 4;
     }
     for (const neighbor of (graph[unit] || [])) {
@@ -48,7 +46,6 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
       }
     }
   }
-  // Si no hay conexión matemática, devolvemos el valor intacto
   return Math.round(value * 4) / 4;
 }
 
@@ -77,7 +74,10 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
       
       <div className="flex items-center gap-1.5 ml-auto">
         <input type="number" step="any" value={weight} onChange={(e) => { setWeight(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
-        <span className="text-zinc-500 text-xs w-6 truncate text-center">{currentUnit}</span>
+        
+        {/* ---> LECTURA HISTÓRICA: Se muestra la unidad con la que se completó esa serie <--- */}
+        <span className="text-zinc-500 text-xs w-6 truncate text-center">{set.unit || currentUnit}</span>
+        
         <span className="text-zinc-600">×</span>
         <input type="number" step="any" value={reps} onChange={(e) => { setReps(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">reps</span>
@@ -95,7 +95,7 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
 interface ExerciseTrackerProps {
   workoutEx: WorkoutExercise
   allExercises: Exercise[]
-  defaultsMap: Map<string, { weight: number; reps: number }>
+  defaultsMap: Map<string, { weight: number; reps: number; unit?: string }>
   swapCandidates: Exercise[]
   onSwapExercise: (targetExercise: Exercise) => void
 }
@@ -143,10 +143,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const currentSetIndex = sets.length
   const isCompletedVisual = currentSetIndex >= targetSets
 
-  const routineSpecificDefault = defaultsMap.get(`${routineExId}-set-${currentSetIndex}`)
-  const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
-  const globalDefault = defaultsMap.get(`global-${exercise.id}`)
-
   const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20)
   const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
   const [isCompleted, setIsCompleted] = useState(false)
@@ -155,11 +151,31 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
 
   const currentNote = routineNotes[routineExId] || ''
 
+  // ---> INTELIGENCIA DE SMART DEFAULT SERIE POR SERIE <---
   useEffect(() => {
-    if (routineSpecificDefault) { setWeight(routineSpecificDefault.weight); setReps(routineSpecificDefault.reps) } 
-    else if (predefinedSet) { setWeight(predefinedSet.weight); setReps(predefinedSet.reps) } 
-    else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
-  }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
+    // Al montar, o al avanzar a la siguiente serie, buscamos qué hicimos en el pasado
+    const rDef = defaultsMap.get(`${routineExId}-set-${currentSetIndex}`)
+    const pDef = resolvedConfig.sets_config?.[currentSetIndex]
+    const gDef = defaultsMap.get(`global-${exercise.id}`)
+
+    if (rDef) { 
+      setWeight(rDef.weight) 
+      setReps(rDef.reps)
+      // Si esa serie en el pasado tuvo una unidad distinta a la que marca el selector actual, la cambiamos sola
+      if (rDef.unit && rDef.unit !== currentUnit) updateExerciseUnit(exercise.id, rDef.unit)
+    } 
+    else if (pDef) { 
+      setWeight(pDef.weight) 
+      setReps(pDef.reps) 
+    } 
+    else if (gDef && currentSetIndex === 0) { 
+      setWeight(gDef.weight) 
+      setReps(gDef.reps)
+      // Lo mismo si es la primera serie de un ejercicio sin rutina
+      if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSetIndex]) // Solo se dispara cuando avanzas a la siguiente serie
 
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') {
@@ -169,14 +185,14 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     const newWeight = convertWeight(weight, currentUnit, newUnit, equivalencies);
     setWeight(newWeight);
     updateExerciseUnit(exercise.id, newUnit);
-    setExerciseUnit(routineExId, newUnit); // Guardado permanente para la próxima vez
+    setExerciseUnit(routineExId, newUnit); 
   }
 
   const handleSaveNewUnit = () => {
     if (newUnitText && newUnitText.trim()) {
       const cleanUnit = newUnitText.trim().toLowerCase()
       updateExerciseUnit(exercise.id, cleanUnit)
-      setExerciseUnit(routineExId, cleanUnit) // Guardado permanente para la próxima vez
+      setExerciseUnit(routineExId, cleanUnit)
       addGlobalCustomUnit(cleanUnit) 
     }
     setIsCreatingUnit(false)
@@ -190,7 +206,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       set_type: workoutEx.meta?.set_type ?? 'normal',
       pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out',
       pr_fixed_weight: workoutEx.meta?.pr_fixed_weight,
-      unit: currentUnit // <--- NUEVO: Inyectamos la unidad en el historial para guardarla en Supabase
+      unit: currentUnit
     })
     setIsCompleted(true)
     completeSet(resolvedConfig.rest_time_seconds)
@@ -234,7 +250,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
       )}
 
-      {/* ---> CAJA DE NOTAS PERSISTENTE <--- */}
       <div className="mb-5">
         <div className="relative">
           <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />
@@ -299,8 +314,9 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   )
 }
 
+// ---> AHORA CAPTURAMOS LA UNIDAD DEL HISTORIAL PARA LUEGO INYECTARLA AL COMPONENTE <---
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
-  const defaults = new Map<string, { weight: number; reps: number }>()
+  const defaults = new Map<string, { weight: number; reps: number; unit?: string }>()
   if (routineDayId) {
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
@@ -308,7 +324,7 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
       for (const set of lastRoutineSession.workout_sets) {
         if (set.routine_exercise_id) {
           const idx = setCounters.get(set.routine_exercise_id) || 0
-          defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps })
+          defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps, unit: set.unit })
           setCounters.set(set.routine_exercise_id, idx + 1)
         }
       }
@@ -316,7 +332,7 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
   }
   for (const session of sessions) {
     for (const set of (session.workout_sets || [])) {
-      if (!defaults.has(`global-${set.exercise_id}`)) defaults.set(`global-${set.exercise_id}`, { weight: set.weight, reps: set.reps })
+      if (!defaults.has(`global-${set.exercise_id}`)) defaults.set(`global-${set.exercise_id}`, { weight: set.weight, reps: set.reps, unit: set.unit })
     }
   }
   return defaults
