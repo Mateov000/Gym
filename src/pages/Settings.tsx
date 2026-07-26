@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag } from 'lucide-react'
+import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag, X } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { deleteAllWorkoutHistory } from '../lib/queries'
