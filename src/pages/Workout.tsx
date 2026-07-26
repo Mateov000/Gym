@@ -13,6 +13,44 @@ import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
 
+// ---> Función de Búsqueda de Camino Matemático (BFS) <---
+function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
+  if (fromUnit === toUnit) return value;
+  if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
+
+  const graph: Record<string, { to: string, factor: number }[]> = {};
+  const addEdge = (u: string, v: string, f: number) => {
+    if (!graph[u]) graph[u] = [];
+    graph[u].push({ to: v, factor: f });
+  };
+
+  addEdge('kg', 'lbs', 2.20462262);
+  addEdge('lbs', 'kg', 0.45359237);
+
+  equivalencies.forEach((eq: any) => {
+    addEdge(eq.from, eq.to, eq.multiplier);
+    addEdge(eq.to, eq.from, 1 / eq.multiplier);
+  });
+
+  const queue: { unit: string, val: number }[] = [{ unit: fromUnit, val: value }];
+  const visited = new Set<string>([fromUnit]);
+
+  while (queue.length > 0) {
+    const { unit, val } = queue.shift()!;
+    if (unit === toUnit) {
+      // Magia: Redondeamos el resultado convertido al 0.25 más cercano
+      return Math.round(val * 4) / 4;
+    }
+    for (const neighbor of (graph[unit] || [])) {
+      if (!visited.has(neighbor.to)) {
+        visited.add(neighbor.to);
+        queue.push({ unit: neighbor.to, val: val * neighbor.factor });
+      }
+    }
+  }
+  return Math.round(value * 4) / 4;
+}
+
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, currentUnit }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
@@ -37,10 +75,10 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
       </div>
       
       <div className="flex items-center gap-1.5 ml-auto">
-        <input type="number" value={weight} onChange={(e) => { setWeight(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
+        <input type="number" step="any" value={weight} onChange={(e) => { setWeight(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs w-6 truncate">{currentUnit}</span>
         <span className="text-zinc-600">×</span>
-        <input type="number" value={reps} onChange={(e) => { setReps(Number(e.target.value)); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
+        <input type="number" step="any" value={reps} onChange={(e) => { setReps(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">reps</span>
         
         {isEdited ? (
@@ -63,7 +101,7 @@ interface ExerciseTrackerProps {
 
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit } = useWorkoutStore()
-  const { showQuickCompleteButton, unitEquivalencies, routineNotes, setRoutineNote } = useSettingsStore()
+  const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote } = useSettingsStore()
   const queryClient = useQueryClient()
 
   const exercise = useMemo(() => {
@@ -104,7 +142,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const [showSwapList, setShowSwapList] = useState(false)
   const [showImage, setShowImage] = useState(false)
 
-  // ---> NUEVO: Id único para las notas de este ejercicio en esta rutina <---
+  // ---> NOTAS PERSISTENTES POR RUTINA <---
   const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
   const currentNote = routineNotes[routineExId] || ''
 
@@ -119,30 +157,14 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
   })
 
-  // Convertidor Matemático de Unidades
-  const getUnitFactor = (unit: string) => {
-    if (unit === 'kg') return 1;
-    if (unit === 'lbs') return 0.453592;
-    if (unit === 'bodyweight') return 0;
-    return unitEquivalencies[unit] || 1; // 1 si no hay equivalencia configurada
-  }
-
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') {
       setIsCreatingUnit(true)
       return
     }
-    
-    // Auto-conversión matemática
-    const oldFactor = getUnitFactor(currentUnit)
-    const newFactor = getUnitFactor(newUnit)
-    
-    // Convertimos a Kg base y luego a la nueva unidad
-    const weightInKg = weight * oldFactor
-    const newWeight = newFactor > 0 ? (weightInKg / newFactor) : 0
-    
-    setWeight(Number(newWeight.toFixed(1)))
-    updateExerciseUnit(exercise.id, newUnit)
+    const newWeight = convertWeight(weight, currentUnit, newUnit, equivalencies);
+    setWeight(newWeight);
+    updateExerciseUnit(exercise.id, newUnit);
   }
 
   const handleSaveNewUnit = () => {
@@ -211,14 +233,14 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
       )}
 
-      {/* ---> NUEVO: Caja de Notas Persistente <--- */}
+      {/* ---> CAJA DE NOTAS PERSISTENTE <--- */}
       <div className="mb-5">
         <div className="relative">
           <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />
           <textarea 
             value={currentNote}
             onChange={(e) => setRoutineNote(routineExId, e.target.value)}
-            placeholder="Añade notas para este ejercicio en esta rutina..."
+            placeholder="Añade notas para este ejercicio (se guardarán para la próxima vez)..."
             className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 pr-3 pl-10 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-14 focus:h-24 transition-all"
           />
         </div>

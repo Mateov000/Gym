@@ -26,10 +26,11 @@ export default function SmartStepper({ label, value, step, unit = '', onChange }
         </button>
         
         <div className="flex flex-col items-center justify-center flex-1">
-          {/* ---> NUEVO: Caja de texto editable <--- */}
+          {/* ---> NUEVO: Input de texto libre para escribir rápidamente <--- */}
           <input 
             type="number"
-            value={value.toString()} // string evita el cero a la izquierda molesto
+            step="any"
+            value={value.toString()} 
             onChange={handleInputChange}
             className="bg-transparent text-2xl sm:text-3xl font-bold text-zinc-100 w-full text-center outline-none [&::-webkit-inner-spin-button]:appearance-none appearance-none"
             inputMode="decimal"
