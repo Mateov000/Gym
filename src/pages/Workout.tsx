@@ -8,12 +8,11 @@ import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
+import { fetchExercises, fetchWorkoutHistory, finishWorkoutSession, updateExercise } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
 import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft } from 'lucide-react'
 
-// ---> Función de Búsqueda de Camino Matemático (BFS) <---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
   if (fromUnit === toUnit) return value;
   if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
@@ -38,7 +37,6 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
     if (unit === toUnit) {
-      // Magia: Redondeamos el resultado convertido al 0.25 más cercano
       return Math.round(val * 4) / 4;
     }
     for (const neighbor of (graph[unit] || [])) {
@@ -48,7 +46,6 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
       }
     }
   }
-  // Si no hay conexión matemática, devolvemos el valor intacto
   return Math.round(value * 4) / 4;
 }
 
@@ -77,7 +74,7 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
       
       <div className="flex items-center gap-1.5 ml-auto">
         <input type="number" step="any" value={weight} onChange={(e) => { setWeight(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
-        <span className="text-zinc-500 text-xs w-6 truncate">{currentUnit}</span>
+        <span className="text-zinc-500 text-xs w-6 truncate text-center">{currentUnit}</span>
         <span className="text-zinc-600">×</span>
         <input type="number" step="any" value={reps} onChange={(e) => { setReps(parseFloat(e.target.value) || 0); setIsEdited(true) }} className={`w-14 bg-zinc-900 border rounded-lg p-1.5 text-center text-sm outline-none font-bold ${isExtra ? 'border-blue-500/30 text-blue-100 focus:border-blue-500' : 'border-zinc-700 text-zinc-100 focus:border-emerald-500'}`} />
         <span className="text-zinc-500 text-xs">reps</span>
@@ -102,7 +99,18 @@ interface ExerciseTrackerProps {
 
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise }: ExerciseTrackerProps) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit } = useWorkoutStore()
-  const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit } = useSettingsStore()
+  const { 
+    showQuickCompleteButton, 
+    equivalencies, 
+    routineNotes, 
+    setRoutineNote, 
+    globalCustomUnits, 
+    addGlobalCustomUnit,
+    exerciseUnits,        // <-- Añadido
+    setExerciseUnit       // <-- Añadido
+  } = useSettingsStore()
+  
+  const queryClient = useQueryClient()
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
@@ -121,10 +129,12 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const sets = workoutEx.sets || []
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
   
-  const currentUnit = workoutEx.meta?.active_unit || resolvedConfig.weight_unit || 'kg'
-  const customUnitsLegacy = resolvedConfig.custom_units || [] // Por si quedaron guardadas a nivel de config
+  const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
   
-  // Base combinada de Unidades
+  // ---> MAGIA: Lee la unidad guardada para este ejercicio, y si no hay, cae en el default de configuración <---
+  const currentUnit = workoutEx.meta?.active_unit || exerciseUnits[routineExId] || resolvedConfig.weight_unit || 'kg'
+  
+  const customUnitsLegacy = resolvedConfig.custom_units || [] 
   const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...customUnitsLegacy, ...globalCustomUnits]))
   
   const [isCreatingUnit, setIsCreatingUnit] = useState(false)
@@ -134,7 +144,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const currentSetIndex = sets.length
   const isCompletedVisual = currentSetIndex >= targetSets
 
-  const routineSpecificDefault = defaultsMap.get(`${workoutEx.meta?.routine_exercise_id}-set-${currentSetIndex}`)
+  const routineSpecificDefault = defaultsMap.get(`${routineExId}-set-${currentSetIndex}`)
   const predefinedSet = resolvedConfig.sets_config?.[currentSetIndex]
   const globalDefault = defaultsMap.get(`global-${exercise.id}`)
 
@@ -144,8 +154,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
   const [showSwapList, setShowSwapList] = useState(false)
   const [showImage, setShowImage] = useState(false)
 
-  // ---> NOTAS PERSISTENTES POR RUTINA <---
-  const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
   const currentNote = routineNotes[routineExId] || ''
 
   useEffect(() => {
@@ -153,6 +161,11 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     else if (predefinedSet) { setWeight(predefinedSet.weight); setReps(predefinedSet.reps) } 
     else if (globalDefault && currentSetIndex === 0) { setWeight(globalDefault.weight); setReps(globalDefault.reps) }
   }, [currentSetIndex, routineSpecificDefault, predefinedSet, globalDefault])
+
+  const updateExConfigMutation = useMutation({
+     mutationFn: async ({ id, config }: { id: string, config: any }) => updateExercise(id, { config }),
+     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
+  })
 
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') {
@@ -162,13 +175,15 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     const newWeight = convertWeight(weight, currentUnit, newUnit, equivalencies);
     setWeight(newWeight);
     updateExerciseUnit(exercise.id, newUnit);
+    setExerciseUnit(routineExId, newUnit); // Guardado permanente para la próxima vez
   }
 
   const handleSaveNewUnit = () => {
     if (newUnitText && newUnitText.trim()) {
       const cleanUnit = newUnitText.trim().toLowerCase()
       updateExerciseUnit(exercise.id, cleanUnit)
-      addGlobalCustomUnit(cleanUnit) // Lo guardamos en la Bóveda Global
+      setExerciseUnit(routineExId, cleanUnit) // Guardado permanente para la próxima vez
+      addGlobalCustomUnit(cleanUnit) 
     }
     setIsCreatingUnit(false)
     setNewUnitText('')
@@ -224,7 +239,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         </div>
       )}
 
-      {/* ---> CAJA DE NOTAS PERSISTENTE <--- */}
       <div className="mb-5">
         <div className="relative">
           <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />

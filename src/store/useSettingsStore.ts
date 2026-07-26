@@ -12,7 +12,7 @@ interface SettingsStore {
   showQuickCompleteButton: boolean
   setShowQuickCompleteButton: (val: boolean) => void
   
-  // ---> NUEVO: Bóveda Global de Unidades Custom <---
+  // Bóveda Global de Unidades Custom
   globalCustomUnits: string[]
   addGlobalCustomUnit: (unit: string) => void
   removeGlobalCustomUnit: (unit: string) => void
@@ -25,6 +25,10 @@ interface SettingsStore {
   // Memoria de Notas Persistentes
   routineNotes: Record<string, string>
   setRoutineNote: (routineExId: string, note: string) => void
+
+  // ---> NUEVO: Memoria de la última unidad usada por ejercicio <---
+  exerciseUnits: Record<string, string>
+  setExerciseUnit: (routineExId: string, unit: string) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -40,7 +44,6 @@ export const useSettingsStore = create<SettingsStore>()(
       }),
       removeGlobalCustomUnit: (unit) => set((state) => ({
         globalCustomUnits: state.globalCustomUnits.filter(u => u !== unit),
-        // Si borramos la unidad, borramos también las equivalencias que dependían de ella
         equivalencies: state.equivalencies.filter(eq => eq.from !== unit && eq.to !== unit)
       })),
 
@@ -60,6 +63,11 @@ export const useSettingsStore = create<SettingsStore>()(
       routineNotes: {},
       setRoutineNote: (routineExId, note) =>
         set((state) => ({ routineNotes: { ...state.routineNotes, [routineExId]: note } })),
+
+      // ---> NUEVO: Funciones para recordar unidades <---
+      exerciseUnits: {},
+      setExerciseUnit: (routineExId, unit) =>
+        set((state) => ({ exerciseUnits: { ...state.exerciseUnits, [routineExId]: unit } })),
     }),
     {
       name: 'app-settings',

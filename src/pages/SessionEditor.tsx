@@ -3,11 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Trash2, Save, Calendar } from 'lucide-react'
 import { fetchSessionById, deleteWorkoutSession, updateWorkoutSet, deleteWorkoutSet, fetchExercises } from '../lib/queries'
+import { useSettingsStore } from '../store/useSettingsStore' // <-- AÑADIDO
 
 export default function SessionEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  
+  // Extraemos la memoria de las unidades para inyectarla en cada serie
+  const { exerciseUnits } = useSettingsStore()
 
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['session', id],
@@ -48,7 +52,6 @@ export default function SessionEditor() {
   if (sessionLoading) return <div className="p-6 text-zinc-500">Cargando entrenamiento...</div>
   if (!session) return <div className="p-6 text-zinc-500">Entrenamiento no encontrado.</div>
 
-  // Agrupamos las series por ejercicio para visualizarlas mejor
   const groupedSets = (session.workout_sets || []).reduce((acc, set) => {
     if (!acc[set.exercise_id]) acc[set.exercise_id] = []
     acc[set.exercise_id].push(set)
@@ -84,7 +87,15 @@ export default function SessionEditor() {
               <h3 className="font-bold text-emerald-500 mb-4">{exName}</h3>
               <div className="flex flex-col gap-3">
                 {sets.map((set, idx) => (
-                  <SetRow key={set.id} set={set} index={idx} onUpdate={updateSetMutation.mutate} onDelete={deleteSetMutation.mutate} />
+                  <SetRow 
+                    key={set.id} 
+                    set={set} 
+                    index={idx} 
+                    onUpdate={updateSetMutation.mutate} 
+                    onDelete={deleteSetMutation.mutate} 
+                    // ---> LE PASAMOS LA UNIDAD DINÁMICA <---
+                    unit={exerciseUnits[set.routine_exercise_id || set.exercise_id] || 'kg'}
+                  />
                 ))}
               </div>
             </div>
@@ -95,8 +106,7 @@ export default function SessionEditor() {
   )
 }
 
-// Componente individual para editar una serie en vivo
-function SetRow({ set, index, onUpdate, onDelete }: any) {
+function SetRow({ set, index, onUpdate, onDelete, unit }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
   const [isEdited, setIsEdited] = useState(false)
@@ -112,10 +122,13 @@ function SetRow({ set, index, onUpdate, onDelete }: any) {
   return (
     <div className="flex items-center gap-2 bg-zinc-950 p-2 rounded-xl border border-zinc-800">
       <span className="text-xs text-zinc-500 w-12 font-bold">Set {index + 1}</span>
-      <input type="number" value={weight} onChange={handleWeightChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
-      <span className="text-zinc-500 text-xs">kg</span>
+      <input type="number" step="any" value={weight} onChange={handleWeightChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
+      
+      {/* ---> SE MUESTRA LA UNIDAD <--- */}
+      <span className="text-zinc-500 text-xs truncate max-w-[40px] text-center">{unit}</span>
+      
       <span className="text-zinc-700">×</span>
-      <input type="number" value={reps} onChange={handleRepsChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
+      <input type="number" step="any" value={reps} onChange={handleRepsChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
       <span className="text-zinc-500 text-xs flex-1">reps</span>
       
       {isEdited ? (
