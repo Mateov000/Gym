@@ -40,6 +40,9 @@ export function buildPrCandidates(
     if (!shouldTrackSet(workoutEx)) continue
 
     for (const set of workoutEx.sets) {
+      // ---> NUEVO: Ignoramos las series de calentamiento <---
+      if (set.set_type === 'warm_up') continue;
+
       const effectiveWeight = getSetWeightForPr(workoutEx, set)
       const volume = effectiveWeight * set.reps
 

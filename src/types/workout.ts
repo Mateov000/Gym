@@ -15,10 +15,11 @@ export interface Exercise {
 export interface LoggedSet {
   weight: number
   reps: number
-  unit?: string // <--- NUEVO: La unidad se pega a la serie
+  unit?: string 
+  rir?: number // <--- NUEVO: Reps in Reserve
   routine_exercise_id?: string
   superset_id?: string | null
-  set_type?: 'normal' | 'drop_set'
+  set_type?: 'normal' | 'drop_set' | 'warm_up' // <--- NUEVO: Warm Up
   pr_opt_out?: boolean
   pr_fixed_weight?: number | null
 }
@@ -27,8 +28,8 @@ export interface ExerciseConfig {
   stepper_increment?: number
   rest_time_seconds?: number
   use_rir?: boolean
-  weight_unit?: string // <--- AHORA ACEPTA CUALQUIER TEXTO
-  custom_units?: string[] // <--- NUEVO: Para guardar unidades creadas
+  weight_unit?: string 
+  custom_units?: string[] 
   bar_weight?: number
   available_plates?: number[]
   show_images?: boolean
@@ -46,13 +47,13 @@ export interface WorkoutSessionOptions {
 export interface WorkoutExerciseMeta {
   routine_exercise_id?: string
   superset_id?: string | null
-  set_type?: 'normal' | 'drop_set'
+  set_type?: 'normal' | 'drop_set' | 'warm_up'
   default_reps?: number | null
   default_weight?: number | null
   pr_mode?: 'global' | 'fixed' | 'opt_out'
   pr_fixed_weight?: number | null
   config?: ExerciseConfig | null
-  active_unit?: string // <--- NUEVO: La unidad activa durante el entrenamiento
+  active_unit?: string 
 }
 
 export interface WorkoutExercise {
@@ -67,7 +68,9 @@ export interface PersistedWorkoutSet {
   routine_exercise_id?: string | null
   weight: number
   reps: number
-  unit?: string // <--- NUEVO: La unidad viene de la BD
+  unit?: string 
+  rir?: number // <--- NUEVO
+  set_type?: 'normal' | 'drop_set' | 'warm_up' // <--- NUEVO
   is_completed: boolean
 }
 
@@ -75,6 +78,7 @@ export interface WorkoutSessionWithSets {
   id: string
   start_time: string
   end_time?: string | null
+  notes?: string | null // <--- NUEVO
   routine_id?: string | null
   routine_day_id?: string | null
   workout_sets: PersistedWorkoutSet[] | null
