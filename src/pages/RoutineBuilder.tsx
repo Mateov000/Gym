@@ -6,8 +6,32 @@ import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/
 import { COPY_AI_PROMPT } from './Settings'
 import type { Exercise } from '../types/workout'
 
+// --- FUNCIONES DE LIMPIEZA Y SIMILITUD ---
 const normalize = (str: string) => 
   str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+
+function getBigrams(str: string) {
+  const bigrams = new Set<string>()
+  for (let i = 0; i < str.length - 1; i++) {
+    bigrams.add(str.substring(i, i + 2))
+  }
+  return bigrams
+}
+
+function getSimilarity(str1: string, str2: string) {
+  const s1 = normalize(str1)
+  const s2 = normalize(str2)
+  if (s1 === s2) return 1
+  const bg1 = getBigrams(s1)
+  const bg2 = getBigrams(s2)
+  let intersection = 0
+  for (const bg of bg1) {
+    if (bg2.has(bg)) intersection++
+  }
+  if (bg1.size === 0 && bg2.size === 0) return 1
+  if (bg1.size === 0 || bg2.size === 0) return 0
+  return (2.0 * intersection) / (bg1.size + bg2.size)
+}
 
 function parseExercisesText(text: string): Partial<Exercise>[] {
   const exercises: Partial<Exercise>[] = []
@@ -19,32 +43,55 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
     let isParsingDesc = false
     for (const line of lines) {
       const lowerLine = line.toLowerCase()
-      if (lowerLine.startsWith('nombre:')) { ex.name = line.substring(7).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('grupo:')) { ex.muscle_group = line.substring(6).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('imagen:')) { ex.image_url = line.substring(7).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('descripcion:')) { ex.description = line.substring(12).trim(); isParsingDesc = true }
-      else if (isParsingDesc) { ex.description = (ex.description || '') + '\n' + line.trim() }
+      if (lowerLine.startsWith('nombre:')) { 
+        ex.name = line.substring(7).replace(/\*\*/g, '').trim()
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('grupo:')) { 
+        ex.muscle_group = line.substring(6).replace(/\*\*/g, '').trim()
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('imagen:')) { 
+        let imgStr = line.substring(7).trim()
+        const urlMatch = imgStr.match(/(https?:\/\/[^\s\]\)]+)/)
+        if (urlMatch) imgStr = urlMatch[1]
+        ex.image_url = imgStr
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('descripcion:')) { 
+        ex.description = line.substring(12).trim()
+        isParsingDesc = true 
+      }
+      else if (isParsingDesc) { 
+        ex.description = (ex.description || '') + '\n' + line.trim() 
+      }
     }
     if (ex.name) exercises.push(ex)
   }
   return exercises
 }
 
-interface ParsedAlternative {
-  originalName: string
-  exercise_id: string
-  is_new?: boolean
-  is_specified?: boolean
+// --- INTERFACES ---
+interface FuzzyMatch {
+  id: string
+  name: string
+  score: number
 }
 
-interface ParsedExercise {
-  exercise_id: string
+interface ParsedEntity {
   originalName: string
+  exercise_id: string
+  is_new: boolean
+  is_specified: boolean
+  fuzzy_matches: FuzzyMatch[]
+}
+
+interface ParsedAlternative extends ParsedEntity {}
+
+interface ParsedExercise extends ParsedEntity {
   target_sets: number
   target_reps: number
-  is_new?: boolean
-  is_specified?: boolean
-  alternatives?: ParsedAlternative[]
+  alternatives: ParsedAlternative[]
   config: { sets_config: { reps: number; weight: number }[], routine_alternatives?: string[] }
 }
 
@@ -59,8 +106,6 @@ interface ParsedRoutine {
   notes: string
   days: ParsedDay[]
   errors: string[]
-  autoCount: number
-  specifiedCount: number
 }
 
 export default function RoutineBuilder() {
@@ -71,6 +116,9 @@ export default function RoutineBuilder() {
   const [exercisesText, setExercisesText] = useState('')
   const [showExDefs, setShowExDefs] = useState(false)
   const [importAsPublic, setImportAsPublic] = useState(false)
+  
+  // Estado para guardar las decisiones del usuario frente a las búsquedas difusas
+  const [resolutions, setResolutions] = useState<Record<string, string>>({})
 
   const { data: allExercises = [] } = useQuery({
     queryKey: ['exercises', 'catalog'],
@@ -78,18 +126,38 @@ export default function RoutineBuilder() {
   })
 
   const parsedResult = useMemo(() => {
-    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], autoCount: 0, specifiedCount: 0 }
+    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [] }
     if (!text.trim()) return result
 
-    // 1. Extraer las definiciones de los ejercicios (leyendo de AMBAS cajas)
     const combinedText = text + '\n\n' + exercisesText;
     const parsedDefs = parseExercisesText(combinedText);
     const specifiedNames = new Set(parsedDefs.map(d => normalize(d.name || '')));
 
-    const uniqueNewEx = new Set<string>()
-
     const lines = text.split('\n')
     let currentDay: ParsedDay | null = null
+
+    // Función auxiliar para procesar un nombre y buscar difuso si no hay exacto
+    const resolveEntity = (name: string): ParsedEntity => {
+      const ex = allExercises.find(e => normalize(e.name) === normalize(name))
+      if (ex) {
+        return { originalName: name, exercise_id: ex.id, is_new: false, is_specified: false, fuzzy_matches: [] }
+      }
+      
+      // Si no hay exacto, buscamos difusos (> 60% similitud)
+      const fuzzy = allExercises
+        .map(e => ({ id: e.id, name: e.name, score: getSimilarity(name, e.name) }))
+        .filter(m => m.score > 0.6)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+
+      return {
+        originalName: name,
+        exercise_id: 'NEW',
+        is_new: true,
+        is_specified: specifiedNames.has(normalize(name)),
+        fuzzy_matches: fuzzy
+      }
+    }
 
     for (let i = 0; i < lines.length; i++) {
       const t = lines[i].trim()
@@ -137,49 +205,13 @@ export default function RoutineBuilder() {
             });
         }
 
-        // Resolución del Ejercicio Principal
-        const ex = allExercises.find(e => normalize(e.name) === normalize(mainExName))
-        let is_new = false;
-        let is_specified = false;
-        let exercise_id = ex?.id || 'NEW';
-        
-        if (!ex) { 
-          is_new = true; 
-          const norm = normalize(mainExName);
-          is_specified = specifiedNames.has(norm);
-
-          if (!uniqueNewEx.has(norm)) { 
-            uniqueNewEx.add(norm); 
-            if (is_specified) result.specifiedCount++; else result.autoCount++;
-          }
-        }
-
-        // Resolución de Alternativas
-        const alternatives = altNames.map(altName => {
-           const altEx = allExercises.find(e => normalize(e.name) === normalize(altName))
-           let alt_is_new = false;
-           let alt_is_specified = false;
-
-           if (!altEx) { 
-             alt_is_new = true; 
-             const normAlt = normalize(altName);
-             alt_is_specified = specifiedNames.has(normAlt);
-
-             if (!uniqueNewEx.has(normAlt)) { 
-                uniqueNewEx.add(normAlt); 
-                if (alt_is_specified) result.specifiedCount++; else result.autoCount++;
-             }
-           }
-           return { originalName: altName, exercise_id: altEx?.id || 'NEW', is_new: alt_is_new, is_specified: alt_is_specified }
-        })
+        const mainEntity = resolveEntity(mainExName);
+        const alternatives = altNames.map(altName => resolveEntity(altName));
 
         currentDay.exercises.push({
-           exercise_id,
-           originalName: mainExName,
+           ...mainEntity,
            target_sets,
            target_reps: sets_config[0]?.reps || 10,
-           is_new,
-           is_specified,
            alternatives,
            config: { sets_config }
         })
@@ -192,9 +224,36 @@ export default function RoutineBuilder() {
     return result
   } , [text, exercisesText, allExercises])
 
+  // --- CÁLCULO DINÁMICO DE ESTADÍSTICAS ---
+  const stats = useMemo(() => {
+    let finalAuto = 0; let finalSpec = 0; let finalExist = 0;
+    const processed = new Set<string>();
+
+    const processEntity = (ent: ParsedEntity) => {
+      const norm = normalize(ent.originalName);
+      if (processed.has(norm)) return;
+      processed.add(norm);
+
+      if (!ent.is_new) { finalExist++; return; }
+      
+      const finalAction = resolutions[ent.originalName] || 'NEW';
+      if (finalAction !== 'NEW') { finalExist++; return; }
+      
+      if (ent.is_specified) finalSpec++; else finalAuto++;
+    };
+
+    parsedResult.days.forEach(day => {
+      day.exercises.forEach(ex => {
+        processEntity(ex);
+        ex.alternatives?.forEach(processEntity);
+      })
+    })
+
+    return { auto: finalAuto, specified: finalSpec, existing: finalExist, hasNew: finalAuto > 0 || finalSpec > 0 }
+  }, [parsedResult, resolutions])
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // Parsear combinando ambos cuadros
       const defs = parseExercisesText(text + '\n\n' + exercisesText);
       const defMap = new Map(defs.map(d => [normalize(d.name!), d]));
       const newExMap = new Map<string, string>(); 
@@ -204,7 +263,9 @@ export default function RoutineBuilder() {
       for (const day of daysToSave) {
          for (const ex of day.exercises) {
             
-            if (ex.is_new) {
+            const finalMainId = resolutions[ex.originalName] || ex.exercise_id;
+
+            if (finalMainId === 'NEW') {
                const norm = normalize(ex.originalName);
                if (newExMap.has(norm)) {
                  ex.exercise_id = newExMap.get(norm)!;
@@ -220,12 +281,16 @@ export default function RoutineBuilder() {
                  ex.exercise_id = createdEx.id;
                  newExMap.set(norm, createdEx.id);
                }
+            } else {
+               ex.exercise_id = finalMainId;
             }
 
             if (ex.alternatives && ex.alternatives.length > 0) {
                const altIds = []
                for (const alt of ex.alternatives) {
-                  if (alt.is_new) {
+                  const finalAltId = resolutions[alt.originalName] || alt.exercise_id;
+
+                  if (finalAltId === 'NEW') {
                      const normAlt = normalize(alt.originalName);
                      if (newExMap.has(normAlt)) {
                        altIds.push(newExMap.get(normAlt)!);
@@ -242,7 +307,7 @@ export default function RoutineBuilder() {
                        newExMap.set(normAlt, createdAlt.id);
                      }
                   } else {
-                    altIds.push(alt.exercise_id)
+                    altIds.push(finalAltId)
                   }
                }
                ex.config.routine_alternatives = altIds
@@ -258,6 +323,37 @@ export default function RoutineBuilder() {
     },
     onError: (error: any) => alert(`Error al guardar: ${error.message}`)
   })
+
+  // Helper para renderizar los títulos de los ejercicios interactivos
+  const renderEntityBadge = (ent: ParsedEntity) => {
+    if (!ent.is_new) {
+      return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Ya en Catálogo</span>
+    }
+
+    const selectedAction = resolutions[ent.originalName] || 'NEW';
+    const hasFuzzyMatches = ent.fuzzy_matches.length > 0;
+
+    if (hasFuzzyMatches) {
+      const isResolved = selectedAction !== 'NEW';
+      return (
+        <select 
+          value={selectedAction} 
+          onChange={(e) => setResolutions(prev => ({...prev, [ent.originalName]: e.target.value}))}
+          className={`text-[10px] font-bold uppercase tracking-widest rounded px-1 py-0.5 outline-none cursor-pointer border max-w-[180px] sm:max-w-[200px] truncate ${isResolved ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-orange-500/20 text-orange-400 border-orange-500/30'}`}
+        >
+          <option value="NEW">✨ CREAR NUEVO</option>
+          {ent.fuzzy_matches.map(m => (
+            <option key={m.id} value={m.id}>🔗 VINCULAR: {m.name}</option>
+          ))}
+        </select>
+      )
+    }
+
+    // Es nuevo pero sin matches difusos
+    return ent.is_specified 
+      ? <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Nuevo (Definido)</span>
+      : <span className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Nuevo (Auto)</span>
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24 max-w-2xl mx-auto">
@@ -280,15 +376,16 @@ export default function RoutineBuilder() {
         </div>
       ) : text.trim().length > 10 ? (
         <div className="flex flex-col gap-3 mb-4">
-           {(parsedResult.autoCount > 0 || parsedResult.specifiedCount > 0) && (
-             <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-3 rounded-2xl flex flex-col gap-1.5 text-sm font-bold">
-               <div className="flex items-center gap-2">
-                 <Info size={18} className="flex-shrink-0" />
-                 Se crearán {parsedResult.autoCount + parsedResult.specifiedCount} ejercicios nuevos automáticamente.
+           {(stats.hasNew || stats.existing > 0) && (
+             <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex flex-col gap-2 text-sm">
+               <div className="flex items-center gap-2 font-bold text-zinc-100 mb-1">
+                 <Info size={18} className="flex-shrink-0 text-emerald-500" />
+                 Resumen de ejercicios:
                </div>
-               <ul className="pl-7 text-xs text-yellow-500/80 font-normal list-disc space-y-0.5">
-                  {parsedResult.specifiedCount > 0 && <li><strong>{parsedResult.specifiedCount}</strong> fueron especificados por ti con detalles.</li>}
-                  {parsedResult.autoCount > 0 && <li><strong>{parsedResult.autoCount}</strong> se crearán con datos en blanco.</li>}
+               <ul className="pl-7 text-xs text-zinc-400 font-normal list-disc space-y-1.5">
+                  {stats.existing > 0 && <li><strong>{stats.existing}</strong> están en tu catálogo (o los vinculaste) y se reciclarán.</li>}
+                  {stats.specified > 0 && <li><strong>{stats.specified}</strong> son nuevos y tomarán las definiciones que escribiste.</li>}
+                  {stats.auto > 0 && <li><strong>{stats.auto}</strong> son nuevos y se crearán en blanco <span className="text-yellow-500/80">(Auto)</span>.</li>}
                </ul>
              </div>
            )}
@@ -318,12 +415,12 @@ export default function RoutineBuilder() {
         />
       </div>
 
-      {(parsedResult.autoCount > 0 || parsedResult.specifiedCount > 0) && (
+      {stats.hasNew && (
         <div className="mb-6">
-          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg active:scale-95 transition-all w-full justify-between">
+          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg active:scale-95 transition-all w-full justify-between border border-emerald-500/20">
             <span className="flex items-center gap-2">
               {showExDefs ? <ChevronUp size={14}/> : <ChevronDown size={14}/>} 
-              Añadir detalles a ejercicios por separado (Opcional)
+              Añadir detalles a los {stats.auto + stats.specified} ejercicios nuevos (Opcional)
             </span>
           </button>
           
@@ -383,28 +480,26 @@ Descripcion: Mantén el torso recto...`}
                 <h3 className="text-lg font-bold text-emerald-500 mb-3 pb-2 border-b border-zinc-800/50">{day.name}</h3>
                 <div className="flex flex-col gap-2">
                   {day.exercises.map((ex, eIdx) => (
-                    <div key={eIdx} className={`bg-zinc-950 border p-3 rounded-xl flex items-center justify-between ${ex.is_new ? 'border-yellow-500/30' : 'border-zinc-800'}`}>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
-                          {ex.is_new && (
-                             ex.is_specified 
-                               ? <span className="bg-emerald-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO (DEFINIDO)</span>
-                               : <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO (AUTO)</span>
-                          )}
+                    <div key={eIdx} className={`bg-zinc-950 border p-3 rounded-xl flex items-center justify-between ${ex.is_new ? 'border-orange-500/30' : 'border-zinc-800'}`}>
+                      <div className="w-full">
+                        <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row w-full mb-1">
+                          <p className="font-bold text-sm text-zinc-100 truncate">{ex.originalName}</p>
+                          {renderEntityBadge(ex)}
                         </div>
                         
                         {ex.alternatives && ex.alternatives.length > 0 && (
-                           <p className="text-[10px] text-zinc-500 font-bold mt-1">
-                             <span className="text-zinc-600">Alts:</span> {ex.alternatives.map(a => 
-                               a.is_new 
-                                 ? `${a.originalName} [NUEVO${a.is_specified ? ' DEFINIDO' : ' AUTO'}]` 
-                                 : a.originalName
-                             ).join(' / ')}
-                           </p>
+                           <div className="text-[10px] mt-2 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 flex flex-col gap-1.5">
+                             <span className="text-zinc-500 font-bold">ALTERNATIVAS:</span>
+                             {ex.alternatives.map((alt, aIdx) => (
+                               <div key={aIdx} className="flex items-center justify-between gap-2 pl-2 border-l-2 border-zinc-700">
+                                 <span className="text-zinc-300 truncate font-medium">{alt.originalName}</span>
+                                 {renderEntityBadge(alt)}
+                               </div>
+                             ))}
+                           </div>
                         )}
 
-                        <p className="text-[11px] text-zinc-500 mt-1.5 uppercase tracking-wider font-medium">
+                        <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-wider font-medium">
                           {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => s.weight > 0 ? `${s.reps}@${s.weight}` : `${s.reps}`).join(', ')}
                         </p>
                       </div>
