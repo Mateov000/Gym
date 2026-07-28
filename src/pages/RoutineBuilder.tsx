@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp, Globe2, Lock } from 'lucide-react'
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp, Globe2, Lock, Sparkles, X } from 'lucide-react'
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
 import type { Exercise } from '../types/workout'
