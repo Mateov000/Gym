@@ -315,7 +315,8 @@ Descripcion: Mantén el torso recto...`}
           </div>
 
           <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-            <div className="flex items-center justify-between">
+            
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-800 mb-4">
               <div className="pr-4">
                 <div className="flex items-center gap-2 mb-1">
                   {editingEx.is_public ? <Globe2 size={16} className="text-emerald-500" /> : <Lock size={16} className="text-blue-400" />}
@@ -329,6 +330,22 @@ Descripcion: Mantén el torso recto...`}
                 <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${editingEx.is_public ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
+
+            <div className="flex items-center justify-between">
+              <div className="pr-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Dumbbell size={16} className="text-zinc-400" />
+                  <p className="font-bold text-zinc-100">Usa Barra Olímpica</p>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Activa la calculadora visual de discos al entrenar este ejercicio.
+                </p>
+              </div>
+              <button onClick={() => setEditingEx({ ...editingEx, config: { ...(editingEx.config || {}), uses_barbell: !(editingEx.config?.uses_barbell) } })} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${editingEx.config?.uses_barbell ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${editingEx.config?.uses_barbell ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
           </div>
 
           {editingEx.id && (

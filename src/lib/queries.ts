@@ -338,3 +338,22 @@ export async function deleteAllWorkoutHistory() {
     if (sessionErr) throw sessionErr
   }
 }
+// ... TODO TU CÓDIGO ANTERIOR EN QUERIES.TS SE MANTIENE INTACTO ...
+
+// ==========================================
+// 5. EXPORTACIÓN DE DATOS (DATA SCIENCE)
+// ==========================================
+export async function fetchAllWorkoutData(): Promise<WorkoutSessionWithSets[]> {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select(`
+      id, start_time, end_time, routine_id, routine_day_id, notes,
+      workout_sets (
+        id, exercise_id, routine_exercise_id, weight, reps, unit, rir, set_type, is_completed
+      )
+    `)
+    .order('start_time', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as WorkoutSessionWithSets[]
+}

@@ -35,7 +35,8 @@ export interface ExerciseConfig {
   show_images?: boolean
   show_google_search?: boolean
   sets_config?: { reps: number; weight: number }[]
-  routine_alternatives?: string[] // <--- NUEVO: Reemplazos favoritos para esta rutina
+  routine_alternatives?: string[] 
+  uses_barbell?: boolean // <--- NUEVO: Para activar PlateMath
 }
 
 export interface WorkoutSessionOptions {

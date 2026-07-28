@@ -11,7 +11,8 @@ const DEFAULT_CONFIG: Required<ExerciseConfig> = {
   show_images: true,
   show_google_search: false,
   sets_config: [], 
-  routine_alternatives: [], // <--- AÑADIDO: Inicializamos el arreglo vacío para evitar el error TS2741
+  routine_alternatives: [],
+  uses_barbell: false, // <--- NUEVO
 }
 
 export function resolveExerciseConfig(

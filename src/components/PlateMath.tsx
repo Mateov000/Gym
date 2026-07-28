@@ -2,44 +2,40 @@ import { Dumbbell } from 'lucide-react'
 
 interface PlateMathProps {
   weight: number
+  barWeight?: number // <--- NUEVO
 }
 
-export default function PlateMath({ weight }: PlateMathProps) {
-  // En el futuro, estos valores vendrán de la configuración del usuario
-  const BAR_WEIGHT = 20
+export default function PlateMath({ weight, barWeight = 20 }: PlateMathProps) {
   const AVAILABLE_PLATES = [20, 15, 10, 5, 2.5, 1.25]
 
-  // Calcular peso por lado
-  let perSide = (weight - BAR_WEIGHT) / 2
+  let perSide = (weight - barWeight) / 2
   const plates: number[] = []
 
   if (perSide > 0) {
     AVAILABLE_PLATES.forEach(plate => {
       while (perSide >= plate) {
         plates.push(plate)
-        // Redondeamos para evitar el clásico error de decimales infinitos en JavaScript
         perSide = Math.round((perSide - plate) * 100) / 100 
       }
     })
   }
 
-  // Si el peso es menor o igual a la barra
-  if (weight <= BAR_WEIGHT) {
+  if (weight <= barWeight) {
     return (
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 text-center mt-4">
-        <p className="text-zinc-400 text-sm">Solo usar la barra ({BAR_WEIGHT}kg)</p>
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 text-center mt-4 animate-in fade-in zoom-in-95 duration-200">
+        <p className="text-zinc-400 text-sm">Solo usar la barra ({barWeight}kg)</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mt-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mt-4 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 text-zinc-400">
           <Dumbbell size={16} />
           <span className="text-sm font-medium">Discos por lado</span>
         </div>
-        <span className="text-xs text-zinc-500">Barra: {BAR_WEIGHT}kg</span>
+        <span className="text-xs text-zinc-500">Barra: {barWeight}kg</span>
       </div>
       
       <div className="flex flex-wrap gap-2">

@@ -248,7 +248,9 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
         <SmartStepper label={`Peso (${currentUnit})`} value={weight} step={resolvedConfig.stepper_increment} unit={currentUnit} onChange={setWeight} />
         <SmartStepper label={`Reps`} value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
-      {(currentUnit === 'kg' || currentUnit === 'lbs') && <PlateMath weight={weight} />}
+      {(currentUnit === 'kg' || currentUnit === 'lbs') && resolvedConfig.uses_barbell && (
+        <PlateMath weight={weight} barWeight={resolvedConfig.bar_weight} />
+      )}
       
       <div className="mt-4 flex gap-2">
         <div className="flex-1"><CheckInButton isCompleted={isCompleted} onClick={handleCheckIn} /></div>

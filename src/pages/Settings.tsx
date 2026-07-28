@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag, X, Bot, Copy } from 'lucide-react'
+import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag, X, Bot, Copy, Download, FileText, Code } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { deleteAllWorkoutHistory } from '../lib/queries'
+import { deleteAllWorkoutHistory, fetchAllWorkoutData, fetchExercises } from '../lib/queries'
 
 export const COPY_AI_PROMPT = () => {
   const prompt = `Actúa como un experto entrenador personal. Quiero que me generes rutinas de gimnasio y listas de ejercicios usando ESTRICTAMENTE los siguientes formatos de texto para que yo pueda copiarlos y pegarlos directamente en mi aplicación. No uses markdown ni viñetas, solo texto plano con la estructura exacta:
@@ -67,6 +67,7 @@ export default function Settings() {
   const [newUnitFrom, setNewUnitFrom] = useState('kg')
   const [newEqValue, setNewEqValue] = useState('')
   const [newUnitTo, setNewUnitTo] = useState('lbs')
+  const [isExporting, setIsExporting] = useState(false)
 
   const handleAddCustomUnit = () => {
     if (newCustomUnit && newCustomUnit.trim()) {
@@ -81,6 +82,53 @@ export default function Settings() {
       setNewEqValue('')
     } else if (newUnitFrom === newUnitTo) {
       alert("No puedes crear una equivalencia entre la misma unidad.")
+    }
+  }
+
+  const handleExport = async (format: 'json' | 'csv') => {
+    setIsExporting(true)
+    try {
+      const data = await fetchAllWorkoutData()
+      const catalog = await fetchExercises()
+
+      if (format === 'json') {
+        const enriched = data.map(session => ({
+          ...session,
+          workout_sets: session.workout_sets?.map(set => ({
+            ...set,
+            exercise_name: catalog.find(e => e.id === set.exercise_id)?.name || 'Desconocido'
+          }))
+        }))
+        const blob = new Blob([JSON.stringify(enriched, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `gymtracker-backup-${new Date().toISOString().split('T')[0]}.json`
+        a.click()
+      } else {
+        let csv = 'Fecha,Hora Inicio,Hora Fin,Ejercicio,Tipo de Serie,Peso,Unidad,Reps,RIR,Completado\n'
+        data.forEach(session => {
+          const date = new Date(session.start_time).toLocaleDateString()
+          const time = new Date(session.start_time).toLocaleTimeString()
+          const end = session.end_time ? new Date(session.end_time).toLocaleTimeString() : ''
+          
+          session.workout_sets?.forEach(set => {
+            const exName = catalog.find(e => e.id === set.exercise_id)?.name || 'Desconocido'
+            const cleanName = exName.replace(/,/g, '') 
+            csv += `${date},${time},${end},${cleanName},${set.set_type || 'normal'},${set.weight},${set.unit || 'kg'},${set.reps},${set.rir ?? ''},${set.is_completed}\n`
+          })
+        })
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `gymtracker-backup-${new Date().toISOString().split('T')[0]}.csv`
+        a.click()
+      }
+    } catch (err: any) {
+      alert('Error al exportar: ' + err.message)
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -117,6 +165,23 @@ export default function Settings() {
         </button>
       </div>
 
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 mb-6">
+        <h2 className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-6 flex items-center gap-2">
+          <Download size={16} /> Data Science & Backups
+        </h2>
+        <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+          Descarga todo tu historial de entrenamientos en bruto para analizarlo en Excel, Sheets, o armar tus propios scripts de cruce de datos.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={() => handleExport('csv')} disabled={isExporting} className="flex-1 bg-blue-500/10 text-blue-400 font-bold p-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50">
+            <FileText size={18} /> CSV
+          </button>
+          <button onClick={() => handleExport('json')} disabled={isExporting} className="flex-1 bg-blue-500/10 text-blue-400 font-bold p-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50">
+            <Code size={18} /> JSON
+          </button>
+        </div>
+      </div>
+
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-6">
         <h2 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-6">Entrenamiento</h2>
         
@@ -135,7 +200,6 @@ export default function Settings() {
           </button>
         </div>
 
-        {/* ---> NUEVO BOTÓN PARA RIR <--- */}
         <div className="flex items-center justify-between mb-8 border-t border-zinc-800 pt-6">
           <div className="pr-4">
             <p className="font-bold text-zinc-100">Mostrar RIR (Reps en Reserva)</p>
