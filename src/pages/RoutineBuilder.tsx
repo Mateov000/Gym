@@ -1,9 +1,34 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info } from 'lucide-react'
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
+import type { Exercise } from '../types/workout'
+
+const normalize = (str: string) => 
+  str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+
+function parseExercisesText(text: string): Partial<Exercise>[] {
+  const exercises: Partial<Exercise>[] = []
+  const blocks = text.split(/\n\s*\n/)
+  for (const block of blocks) {
+    if (!block.trim()) continue
+    const lines = block.split('\n')
+    const ex: Partial<Exercise> = {}
+    let isParsingDesc = false
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase()
+      if (lowerLine.startsWith('nombre:')) { ex.name = line.substring(7).trim(); isParsingDesc = false }
+      else if (lowerLine.startsWith('grupo:')) { ex.muscle_group = line.substring(6).trim(); isParsingDesc = false }
+      else if (lowerLine.startsWith('imagen:')) { ex.image_url = line.substring(7).trim(); isParsingDesc = false }
+      else if (lowerLine.startsWith('descripcion:')) { ex.description = line.substring(12).trim(); isParsingDesc = true }
+      else if (isParsingDesc) { ex.description = (ex.description || '') + '\n' + line.trim() }
+    }
+    if (ex.name) exercises.push(ex)
+  }
+  return exercises
+}
 
 interface ParsedAlternative {
   originalName: string
@@ -17,7 +42,7 @@ interface ParsedExercise {
   target_sets: number
   target_reps: number
   is_new?: boolean
-  alternatives?: ParsedAlternative[] // <--- NUEVO
+  alternatives?: ParsedAlternative[]
   config: { sets_config: { reps: number; weight: number }[], routine_alternatives?: string[] }
 }
 
@@ -35,13 +60,13 @@ interface ParsedRoutine {
   newExercisesCount: number
 }
 
-const normalize = (str: string) => 
-  str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
-
 export default function RoutineBuilder() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  
   const [text, setText] = useState('')
+  const [exercisesText, setExercisesText] = useState('')
+  const [showExDefs, setShowExDefs] = useState(false)
 
   const { data: allExercises = [] } = useQuery({
     queryKey: ['exercises', 'catalog'],
@@ -51,6 +76,9 @@ export default function RoutineBuilder() {
   const parsedResult = useMemo(() => {
     const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], newExercisesCount: 0 }
     if (!text.trim()) return result
+
+    // Memoria volátil para no contar el mismo ejercicio nuevo 2 veces en el contador visual
+    const uniqueNewEx = new Set<string>()
 
     const lines = text.split('\n')
     let currentDay: ParsedDay | null = null
@@ -77,7 +105,6 @@ export default function RoutineBuilder() {
 
         const [exStr, setsStr] = t.split('|').map(s => s.trim())
         
-        // ---> NUEVO: Detección de Alternativas usando ' / ' <---
         const exNames = exStr.split(/\s+\/\s+/).map(s => s.trim())
         const mainExName = exNames[0]
         const altNames = exNames.slice(1)
@@ -102,17 +129,24 @@ export default function RoutineBuilder() {
             });
         }
 
-        // Resolución del Principal
         const ex = allExercises.find(e => normalize(e.name) === normalize(mainExName))
         let is_new = false;
         let exercise_id = ex?.id || 'NEW';
-        if (!ex) { is_new = true; result.newExercisesCount++; }
+        
+        if (!ex) { 
+          is_new = true; 
+          const norm = normalize(mainExName);
+          if (!uniqueNewEx.has(norm)) { uniqueNewEx.add(norm); result.newExercisesCount++; }
+        }
 
-        // Resolución de Alternativas
         const alternatives = altNames.map(altName => {
            const altEx = allExercises.find(e => normalize(e.name) === normalize(altName))
            let alt_is_new = false;
-           if (!altEx) { alt_is_new = true; result.newExercisesCount++; }
+           if (!altEx) { 
+             alt_is_new = true; 
+             const normAlt = normalize(altName);
+             if (!uniqueNewEx.has(normAlt)) { uniqueNewEx.add(normAlt); result.newExercisesCount++; }
+           }
            return { originalName: altName, exercise_id: altEx?.id || 'NEW', is_new: alt_is_new }
         })
 
@@ -136,23 +170,58 @@ export default function RoutineBuilder() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // 1. Extraer definiciones manuales opcionales
+      const defs = parseExercisesText(exercisesText);
+      const defMap = new Map(defs.map(d => [normalize(d.name!), d]));
+
+      // 2. Diccionario para evitar crear el mismo ejercicio 2 veces en Supabase
+      const newExMap = new Map<string, string>(); // normName -> supabase_id
+
       const daysToSave = [...parsedResult.days]
+      
       for (const day of daysToSave) {
          for (const ex of day.exercises) {
-            // Creamos el principal si no existe
+            
             if (ex.is_new) {
-               const createdEx = await createExercise({ name: ex.originalName, muscle_group: 'Otro', is_public: false })
-               ex.exercise_id = createdEx.id
+               const norm = normalize(ex.originalName);
+               if (newExMap.has(norm)) {
+                 ex.exercise_id = newExMap.get(norm)!;
+               } else {
+                 const manualDef = defMap.get(norm);
+                 const createdEx = await createExercise({ 
+                   name: ex.originalName, 
+                   muscle_group: manualDef?.muscle_group || 'Otro', 
+                   description: manualDef?.description || '',
+                   image_url: manualDef?.image_url || '',
+                   is_public: false 
+                 });
+                 ex.exercise_id = createdEx.id;
+                 newExMap.set(norm, createdEx.id);
+               }
             }
-            // Creamos las alternativas si no existen y armamos el config
+
             if (ex.alternatives && ex.alternatives.length > 0) {
                const altIds = []
                for (const alt of ex.alternatives) {
                   if (alt.is_new) {
-                     const createdAlt = await createExercise({ name: alt.originalName, muscle_group: 'Otro', is_public: false })
-                     alt.exercise_id = createdAlt.id
+                     const normAlt = normalize(alt.originalName);
+                     if (newExMap.has(normAlt)) {
+                       altIds.push(newExMap.get(normAlt)!);
+                     } else {
+                       const manualDef = defMap.get(normAlt);
+                       const createdAlt = await createExercise({ 
+                         name: alt.originalName, 
+                         muscle_group: manualDef?.muscle_group || 'Otro', 
+                         description: manualDef?.description || '',
+                         image_url: manualDef?.image_url || '',
+                         is_public: false 
+                       });
+                       altIds.push(createdAlt.id);
+                       newExMap.set(normAlt, createdAlt.id);
+                     }
+                  } else {
+                    altIds.push(alt.exercise_id)
                   }
-                  altIds.push(alt.exercise_id)
                }
                ex.config.routine_alternatives = altIds
             }
@@ -204,7 +273,7 @@ export default function RoutineBuilder() {
         </div>
       ) : null}
 
-      <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
+      <div className="bg-zinc-900 p-4 rounded-2xl mb-4">
         <div className="flex items-start justify-between mb-3">
           <p className="text-xs text-zinc-400 leading-relaxed pr-4">
             Pega aquí tu rutina. Usa "x" o "*" y añade "@ peso" al final si quieres. Usa " / " para añadir reemplazos.
@@ -220,6 +289,24 @@ export default function RoutineBuilder() {
           placeholder={`Rutina: Fuerza y Volumen\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca / Mancuernas | 4x8 @ 60\nAperturas | 12@10, 10@12.5, 8@15`}
         />
       </div>
+
+      {/* ---> NUEVO: Caja opcional para inyectar detalles a los ejercicios nuevos <--- */}
+      {parsedResult.newExercisesCount > 0 && (
+        <div className="mb-6">
+          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1">
+            {showExDefs ? <ChevronUp size={14}/> : <ChevronDown size={14}/>} 
+            Añadir grupo muscular/imágenes a los ejercicios nuevos (Opcional)
+          </button>
+          {showExDefs && (
+            <textarea
+              value={exercisesText}
+              onChange={(e) => setExercisesText(e.target.value)}
+              className="w-full bg-zinc-950 border border-emerald-500/30 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-32 text-sm font-mono resize-none leading-relaxed"
+              placeholder={`Nombre: Ejercicio Inventado\nGrupo: Pecho\nDescripcion: Se hace así...`}
+            />
+          )}
+        </div>
+      )}
 
       {parsedResult.days.length > 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -240,7 +327,6 @@ export default function RoutineBuilder() {
                           {ex.is_new && <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO</span>}
                         </div>
                         
-                        {/* ---> NUEVO: Renderizado de alternativas detectadas <--- */}
                         {ex.alternatives && ex.alternatives.length > 0 && (
                            <p className="text-[10px] text-yellow-500/80 font-bold mt-1">
                              <span className="text-yellow-600">Alts:</span> {ex.alternatives.map(a => a.originalName).join(', ')}

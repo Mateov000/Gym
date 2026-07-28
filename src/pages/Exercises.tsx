@@ -8,6 +8,9 @@ import { supabase } from '../lib/supabase'
 import type { Exercise } from '../types/workout'
 import { COPY_AI_PROMPT } from './Settings'
 
+const normalize = (str: string) => 
+  str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+
 function parseExercisesText(text: string): Partial<Exercise>[] {
   const exercises: Partial<Exercise>[] = []
   const blocks = text.split(/\n\s*\n/)
@@ -29,6 +32,16 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
   return exercises
 }
 
+type ImportAction = 'add' | 'replace' | 'ignore';
+
+interface ImportItem {
+  parsed: Partial<Exercise>;
+  status: 'new' | 'conflict';
+  existingId?: string;
+  existingName?: string;
+  action: ImportAction;
+}
+
 export default function Exercises() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -46,12 +59,13 @@ export default function Exercises() {
   })
 
   const [search, setSearch] = useState('')
-  const [view, setView] = useState<'list' | 'form' | 'import'>('list')
+  const [view, setView] = useState<'list' | 'form' | 'import' | 'import-review'>('list')
   const [editingEx, setEditingEx] = useState<Partial<Exercise> | null>(null)
   
   const [importText, setImportText] = useState('')
   const [isImporting, setIsImporting] = useState(false)
   const [importAsPublic, setImportAsPublic] = useState(false)
+  const [importReviewItems, setImportReviewItems] = useState<ImportItem[]>([])
 
   const filteredExercises = useMemo(() => {
     return exercises.filter(ex => 
@@ -120,18 +134,58 @@ export default function Exercises() {
     }
   }
 
-  const handleImportSubmit = async () => {
+  // --- Validación del Formulario de Creación Individual ---
+  const handleFormSave = () => {
+    if (!editingEx || !editingEx.name) return
+    const normName = normalize(editingEx.name)
+    const exists = exercises.find(e => normalize(e.name) === normName && e.id !== editingEx.id)
+    if (exists) {
+      alert(`Ya existe un ejercicio llamado "${exists.name}" en tu catálogo.\nPor favor usa un nombre diferente para evitar duplicados.`)
+      return
+    }
+    saveMutation.mutate(editingEx)
+  }
+
+  // --- Paso 1: Analizar Texto de Importación ---
+  const handleImportAnalyze = () => {
+    const parsed = parseExercisesText(importText)
+    if (parsed.length === 0) {
+      alert("No se detectaron ejercicios válidos con la estructura indicada.")
+      return
+    }
+
+    const reviewList: ImportItem[] = parsed.map(p => {
+      const normName = normalize(p.name || '')
+      const existing = exercises.find(e => normalize(e.name) === normName)
+      if (existing) {
+        return { parsed: p, status: 'conflict', existingId: existing.id, existingName: existing.name, action: 'ignore' }
+      }
+      return { parsed: p, status: 'new', action: 'add' }
+    })
+
+    setImportReviewItems(reviewList)
+    setView('import-review')
+  }
+
+  // --- Paso 2: Ejecutar Acciones Confirmadas ---
+  const handleConfirmImport = async () => {
     setIsImporting(true)
     try {
-      const parsed = parseExercisesText(importText)
-      if (parsed.length === 0) throw new Error("No se detectó ningún ejercicio válido.")
+      const promises = importReviewItems.map(item => {
+        if (item.action === 'add') {
+          return createExercise({ ...item.parsed, is_public: importAsPublic })
+        } else if (item.action === 'replace' && item.existingId) {
+          return updateExercise(item.existingId, { ...item.parsed, is_public: importAsPublic })
+        }
+        return Promise.resolve()
+      })
 
-      await Promise.all(parsed.map(ex => createExercise({ ...ex, is_public: importAsPublic })))
-
+      await Promise.all(promises)
       await queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
-      alert(`¡Se importaron ${parsed.length} ejercicios con éxito!`)
+      alert('¡Importación completada!')
       setView('list')
       setImportText('')
+      setImportReviewItems([])
     } catch (err: any) {
       alert(err.message)
     } finally {
@@ -139,13 +193,17 @@ export default function Exercises() {
     }
   }
 
+  // ================= RENDERIZADO DE VISTAS ================= //
+
   if (view === 'import') {
     return (
       <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <button onClick={() => setView('list')} className="p-2 bg-zinc-900 rounded-xl text-zinc-400"><ArrowLeft size={24} /></button>
           <h1 className="text-xl font-bold">Importar Ejercicios</h1>
-          <button onClick={handleImportSubmit} disabled={isImporting || !importText.trim()} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"><Save size={20} /></button>
+          <button onClick={handleImportAnalyze} disabled={!importText.trim()} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50 flex items-center gap-2 px-4">
+            Siguiente
+          </button>
         </div>
 
         <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4 flex items-center justify-between">
@@ -182,13 +240,60 @@ Descripcion: Mantén el torso recto...`}
     )
   }
 
+  // --- Vista de Confirmación de Importación ---
+  if (view === 'import-review') {
+    return (
+      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setView('import')} className="p-2 bg-zinc-900 rounded-xl text-zinc-400"><ArrowLeft size={24} /></button>
+          <h1 className="text-xl font-bold">Revisar Importación</h1>
+          <button onClick={handleConfirmImport} disabled={isImporting} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50 px-4">
+            {isImporting ? 'Guardando...' : 'Confirmar'}
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {importReviewItems.map((item, idx) => (
+            <div key={idx} className={`p-4 rounded-xl border ${item.status === 'new' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-yellow-500/5 border-yellow-500/20'}`}>
+              <div className="flex justify-between items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-zinc-100 truncate">{item.parsed.name}</p>
+                  {item.status === 'new' ? (
+                    <span className="text-[10px] text-emerald-500 uppercase tracking-widest font-bold">Nuevo (Se agregará)</span>
+                  ) : (
+                    <span className="text-[10px] text-yellow-500 uppercase tracking-widest font-bold">Ya existe en catálogo</span>
+                  )}
+                </div>
+                
+                {item.status === 'conflict' && (
+                  <select 
+                    value={item.action} 
+                    onChange={(e) => {
+                      const newItems = [...importReviewItems];
+                      newItems[idx].action = e.target.value as ImportAction;
+                      setImportReviewItems(newItems);
+                    }}
+                    className="bg-zinc-950 border border-yellow-500/30 text-yellow-500 text-xs font-bold rounded-lg p-2 outline-none cursor-pointer focus:border-yellow-500"
+                  >
+                    <option value="ignore">Ignorar</option>
+                    <option value="replace">Sobrescribir</option>
+                  </select>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (view === 'form' && editingEx) {
     return (
       <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <button onClick={() => { setView('list'); setEditingEx(null) }} className="p-2 bg-zinc-900 rounded-xl text-zinc-400"><ArrowLeft size={24} /></button>
           <h1 className="text-xl font-bold">{editingEx.id ? 'Editar' : 'Nuevo Ejercicio'}</h1>
-          <button onClick={() => saveMutation.mutate(editingEx)} disabled={saveMutation.isPending || !editingEx.name} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"><Save size={20} /></button>
+          <button onClick={handleFormSave} disabled={saveMutation.isPending || !editingEx.name} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"><Save size={20} /></button>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -270,9 +375,9 @@ Descripcion: Mantén el torso recto...`}
                   {ex.image_url ? <img src={ex.image_url} alt={ex.name} className="w-full h-full object-cover" /> : <Dumbbell className="text-zinc-700" size={24} />}
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-zinc-100">{ex.name}</h3>
+                    <h3 className="font-bold text-zinc-100 truncate">{ex.name}</h3>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {ex.muscle_group && <p className="text-xs text-zinc-500 uppercase tracking-wider">{ex.muscle_group}</p>}
@@ -285,7 +390,7 @@ Descripcion: Mantén el torso recto...`}
                 </div>
 
                 {canEdit && (
-                  <button onClick={(e) => { e.stopPropagation(); setEditingEx(ex); setView('form'); }} className="p-3 text-zinc-500 hover:text-emerald-500">
+                  <button onClick={(e) => { e.stopPropagation(); setEditingEx(ex); setView('form'); }} className="p-3 text-zinc-500 hover:text-emerald-500 flex-shrink-0">
                     <Edit2 size={18} />
                   </button>
                 )}
