@@ -8,11 +8,17 @@ export interface Equivalency {
   multiplier: number
 }
 
+// ---> NUEVO: Interfaz de Biometría <---
+export interface BiometricEntry {
+  id: string
+  date: string
+  weight: number
+}
+
 interface SettingsStore {
   showQuickCompleteButton: boolean
   setShowQuickCompleteButton: (val: boolean) => void
   
-  // ---> NUEVO: Interruptor Maestro para RIR <---
   enableRir: boolean
   setEnableRir: (val: boolean) => void
 
@@ -33,6 +39,11 @@ interface SettingsStore {
   subscribedRoutines: string[]
   addSubscribedRoutine: (id: string) => void
   removeSubscribedRoutine: (id: string) => void
+
+  // ---> NUEVO: Funciones de Biometría <---
+  biometrics: BiometricEntry[]
+  addBiometric: (weight: number, date?: string) => void
+  removeBiometric: (id: string) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -81,6 +92,15 @@ export const useSettingsStore = create<SettingsStore>()(
       })),
       removeSubscribedRoutine: (id) => set((state) => ({
         subscribedRoutines: state.subscribedRoutines.filter(r => r !== id)
+      })),
+
+      // ---> NUEVO: Lógica de Biometría <---
+      biometrics: [],
+      addBiometric: (weight, date = new Date().toISOString()) => set((state) => ({
+        biometrics: [...state.biometrics, { id: crypto.randomUUID(), date, weight }].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      })),
+      removeBiometric: (id) => set((state) => ({
+        biometrics: state.biometrics.filter(b => b.id !== id)
       })),
     }),
     {
