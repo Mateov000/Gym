@@ -122,7 +122,6 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
   const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit, hotelMode, setHotelMode } = useSettingsStore()
-  const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
   const [showMenu, setShowMenu] = useState(false); const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const exercise = useMemo(() => {
