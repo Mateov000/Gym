@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, GripVertical, Plus, Minus, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
@@ -32,9 +32,12 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
 
   const queue: { unit: string, val: number }[] = [{ unit: fromUnit, val: value }];
   const visited = new Set<string>([fromUnit]);
+
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
-    if (unit === toUnit) return Math.round(val * 4) / 4;
+    if (unit === toUnit) {
+      return Math.round(val * 4) / 4;
+    }
     for (const neighbor of (graph[unit] || [])) {
       if (!visited.has(neighbor.to)) {
         visited.add(neighbor.to);
@@ -249,7 +252,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       unit: currentUnit
     })
     setIsCompleted(true)
-    // Inteligencia de descanso para Superseries: solo descansa si es el último del bloque.
     if (isLastInSuperset) completeSet(resolvedConfig.rest_time_seconds)
     setTimeout(() => setIsCompleted(false), 2000)
   }
@@ -314,7 +316,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {sets.map((set, idx) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} isExtra={idx >= targetSets} currentUnit={currentUnit} useRir={resolvedConfig.use_rir}/>)}
+          {sets.map((set: any, idx: number) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} isExtra={idx >= targetSets} currentUnit={currentUnit} useRir={resolvedConfig.use_rir}/>)}
         </div>
       )}
 
@@ -328,7 +330,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
           </div>
         ) : (
           <select value={currentUnit} onChange={(e) => handleUnitChange(e.target.value)} className="bg-zinc-950 border border-zinc-800 text-emerald-400 font-bold text-xs rounded-lg px-2 py-1.5 outline-none focus:border-emerald-500">
-            {allAvailableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+            {allAvailableUnits.map((u: string) => <option key={u} value={u}>{u}</option>)}
             <option value="NEW">+ Crear unidad...</option>
           </select>
         )}
@@ -352,7 +354,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         <div className="mt-4 border-t border-zinc-800 pt-4 animate-in fade-in">
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
           <div className="flex flex-wrap gap-2">
-            {swapCandidates.length === 0 ? <span className="text-xs text-zinc-500">No hay alternativas claras.</span> : swapCandidates.slice(0, 8).map((c) => (
+            {swapCandidates.length === 0 ? <span className="text-xs text-zinc-500">No hay alternativas claras.</span> : swapCandidates.slice(0, 8).map((c: Exercise) => (
               <button key={c.id} onClick={() => handleSwapSelection(c)} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg">{c.name}</button>
             ))}
           </div>
@@ -442,7 +444,6 @@ export default function Workout() {
 
   if (!activeSession) return <Navigate to="/exercises" replace />
 
-  // --- AGRUPACIÓN LÓGICA (SUPERSERIES Y DRAG & DROP) ---
   const groups = useMemo(() => {
     const result: WorkoutExercise[][] = [];
     let current: WorkoutExercise[] = [];
@@ -465,7 +466,6 @@ export default function Workout() {
     newGroups[fromIndex] = newGroups[targetIndex];
     newGroups[targetIndex] = temp;
     
-    // Aplanamos y guardamos
     reorderExercises(newGroups.flat());
   }
 
@@ -477,7 +477,6 @@ export default function Workout() {
           {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
         </div>
         
-        {/* CRONÓMETRO EDITABLE */}
         <div className="relative">
           <button onClick={() => setShowTimeEditor(!showTimeEditor)} className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 active:scale-95 transition-transform">
             <Timer size={18} /> {formatTime(elapsed)}
@@ -497,25 +496,24 @@ export default function Workout() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {groups.map((group, gIdx) => {
+          {groups.map((group: WorkoutExercise[], gIdx: number) => {
             const isSuperset = group.length > 1;
             return (
               <div key={gIdx} className={`relative flex flex-col gap-2 ${isSuperset ? 'p-1.5 sm:p-2 bg-blue-900/5 border border-blue-500/20 rounded-3xl' : ''}`}>
                 
-                {/* BOTONES DE REORDENAMIENTO */}
                 <div className="flex justify-end gap-1 mb-1 pr-2">
                    <button onClick={() => handleMoveGroup(gIdx, 'up')} disabled={gIdx === 0} className="p-1.5 bg-zinc-800 text-zinc-500 rounded-lg disabled:opacity-30 active:scale-95"><ArrowUp size={16}/></button>
                    <button onClick={() => handleMoveGroup(gIdx, 'down')} disabled={gIdx === groups.length - 1} className="p-1.5 bg-zinc-800 text-zinc-500 rounded-lg disabled:opacity-30 active:scale-95"><ArrowDown size={16}/></button>
                 </div>
 
-                {group.map((workoutEx, exIdxInGroup) => (
+                {group.map((workoutEx: WorkoutExercise, exIdxInGroup: number) => (
                   <ExerciseTracker 
                     key={`${workoutEx.exercise.id}-${gIdx}-${exIdxInGroup}`} 
                     workoutEx={workoutEx} 
                     allExercises={allExercises} 
                     defaultsMap={defaultsMap} 
                     swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} 
-                    onSwapExercise={(targetEx) => replaceExercise(workoutEx.exercise.id, targetEx)} 
+                    onSwapExercise={(targetEx: Exercise) => replaceExercise(workoutEx.exercise.id, targetEx)} 
                     isLastInSuperset={exIdxInGroup === group.length - 1}
                   />
                 ))}
@@ -525,7 +523,6 @@ export default function Workout() {
         </div>
       )}
 
-      {/* CAJA DE NOTAS GENERALES DE LA SESIÓN */}
       <div className="mt-8 bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
         <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2"><AlignLeft size={16}/> Notas de la Sesión</h3>
         <textarea 
