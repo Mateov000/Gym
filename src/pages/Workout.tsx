@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown, Zap } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
@@ -35,9 +35,7 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
 
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
-    if (unit === toUnit) {
-      return Math.round(val * 4) / 4;
-    }
+    if (unit === toUnit) return Math.round(val * 4) / 4;
     for (const neighbor of (graph[unit] || [])) {
       if (!visited.has(neighbor.to)) {
         visited.add(neighbor.to);
@@ -80,34 +78,23 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
   return (
     <div className={`flex flex-col px-3 py-3 rounded-xl text-sm border ${isExtra ? 'bg-blue-500/5 border-blue-500/20' : 'bg-zinc-950 border-zinc-800/50'}`}>
       <div className="flex justify-between items-center w-full">
-        
         <div className="flex items-center gap-2">
-          <button 
-            onClick={toggleSetType}
-            className={`w-6 h-6 flex items-center justify-center font-bold text-xs rounded transition-colors ${
-              setType === 'warm_up' ? 'bg-orange-500/20 text-orange-500' :
-              setType === 'drop_set' ? 'bg-purple-500/20 text-purple-400' :
-              'bg-zinc-800 text-zinc-500'
-            }`}
-          >
+          <button onClick={toggleSetType} className={`w-6 h-6 flex items-center justify-center font-bold text-xs rounded transition-colors ${setType === 'warm_up' ? 'bg-orange-500/20 text-orange-500' : setType === 'drop_set' ? 'bg-purple-500/20 text-purple-400' : 'bg-zinc-800 text-zinc-500'}`}>
             {setType === 'warm_up' ? 'W' : setType === 'drop_set' ? 'D' : index + 1}
           </button>
         </div>
-        
         <div className="flex items-center gap-1 ml-auto">
           <input type="number" step="any" value={weight} onChange={(e) => { setWeight(parseFloat(e.target.value) || 0); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" />
           <span className="text-zinc-500 text-[10px] w-5 truncate text-center">{currentUnit}</span>
           <span className="text-zinc-600 text-xs">×</span>
           <input type="number" step="any" value={reps} onChange={(e) => { setReps(parseFloat(e.target.value) || 0); setIsEdited(true) }} className="w-12 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" />
           <span className="text-zinc-500 text-[10px]">reps</span>
-          
           {useRir && (
             <>
               <span className="text-zinc-600 text-xs ml-1">RIR</span>
               <input type="number" step="0.5" value={rir} onChange={(e) => { setRir(e.target.value); setIsEdited(true) }} className="w-10 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none text-zinc-300 focus:border-emerald-500" placeholder="-" />
             </>
           )}
-
           {isEdited ? (
             <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95"><Save size={16}/></button>
           ) : (
@@ -115,7 +102,6 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
           )}
         </div>
       </div>
-      
       {setType !== 'warm_up' && estimated1RM > 0 && (
         <div className="text-[10px] text-zinc-500 text-right mt-1.5 pr-2 w-full">
           1RM Est: <span className="font-bold">~{estimated1RM}{currentUnit}</span>
@@ -127,10 +113,7 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
 
 // --- MODAL DEL HISTORIAL ---
 const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () => void }) => {
-  const { data: history, isLoading } = useQuery({
-    queryKey: ['exercise-history', exercise.id],
-    queryFn: () => fetchExerciseHistory(exercise.id)
-  })
+  const { data: history, isLoading } = useQuery({ queryKey: ['exercise-history', exercise.id], queryFn: () => fetchExerciseHistory(exercise.id) })
 
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center animate-in fade-in duration-200">
@@ -140,7 +123,6 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
           <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500"><History size={24}/></div>
           <h2 className="text-xl font-bold text-zinc-100 truncate">Historial</h2>
         </div>
-        
         <div className="overflow-y-auto flex-1 pr-2 space-y-4 pb-10">
           {isLoading ? <p className="text-zinc-500 text-center py-4">Buscando...</p> : 
            history?.length === 0 ? <p className="text-zinc-500 text-center py-4">No hay historial para este ejercicio.</p> :
@@ -169,7 +151,7 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
 }
 
 // --- TRACKER INDIVIDUAL DEL EJERCICIO ---
-const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
+const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
   const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
 
@@ -209,9 +191,12 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
 
   const currentNote = routineNotes[routineExId] || ''
 
+  // ---> MAGIA CORREGIDA: BÚSQUEDA CRUZADA DE ID_RUTINA + ID_EJERCICIO <---
   useEffect(() => {
-    const rDef = defaultsMap.get(`${routineExId}-set-${currentSetIndex}`)
-    const pDef = resolvedConfig.sets_config?.[currentSetIndex]
+    // Buscamos específicamente el historial de ESTE ejercicio en ESTE lugar de la rutina
+    const smartKey = `${routineExId}-${exercise.id}-set-${currentSetIndex}`
+    const rDef = defaultsMap.get(smartKey)
+    const pDef = resolvedConfig.sets_config?.[currentSetIndex] || resolvedConfig.sets_config?.[(resolvedConfig.sets_config?.length || 1) - 1]
     const gDef = defaultsMap.get(`global-${exercise.id}`)
     
     if (rDef) { 
@@ -224,7 +209,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
       if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSetIndex])
+  }, [currentSetIndex, exercise.id])
 
   const handleUnitChange = (newUnit: string) => {
     if (newUnit === 'NEW') { setIsCreatingUnit(true); return }
@@ -267,10 +252,12 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
     setShowSwapList(false)
   }
 
+  // Identificamos si hay reemplazos inteligentes que la app aprendió
+  const smartSwaps = learnedSwaps.get(routineExId) ? Array.from(learnedSwaps.get(routineExId) as Set<string>).map(id => allExercises.find((e: Exercise) => e.id === id)).filter(Boolean) : []
+  const genericSwaps = swapCandidates.filter((c: Exercise) => !smartSwaps.find((s: any) => s.id === c.id))
+
   return (
     <div className={`bg-zinc-900 border rounded-2xl p-4 sm:p-5 mb-4 relative transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'} ${workoutEx.meta?.superset_id ? 'border-l-4 border-l-blue-500' : ''}`}>
-      
-      {/* MENÚ DE 3 PUNTITOS */}
       <div className="absolute top-4 right-4 z-10">
         <button onClick={() => setShowMenu(!showMenu)} className="p-2 text-zinc-500 hover:text-zinc-300 bg-zinc-950 rounded-xl"><MoreVertical size={18}/></button>
         {showMenu && (
@@ -354,9 +341,18 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
         <div className="mt-4 border-t border-zinc-800 pt-4 animate-in fade-in">
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
           <div className="flex flex-wrap gap-2">
-            {swapCandidates.length === 0 ? <span className="text-xs text-zinc-500">No hay alternativas claras.</span> : swapCandidates.slice(0, 8).map((c: Exercise) => (
+            
+            {/* Primero los que aprendió la IA local */}
+            {smartSwaps.map((c: any) => (
+              <button key={`smart-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.15)]"><Zap size={12} fill="currentColor"/> {c.name}</button>
+            ))}
+
+            {/* Luego los genéricos */}
+            {genericSwaps.slice(0, 8).map((c: Exercise) => (
               <button key={c.id} onClick={() => handleSwapSelection(c)} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg">{c.name}</button>
             ))}
+
+            {swapCandidates.length === 0 && smartSwaps.length === 0 && <span className="text-xs text-zinc-500">No hay alternativas claras.</span>}
           </div>
         </div>
       )}
@@ -368,15 +364,18 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, swapCandidates,
 
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
   const defaults = new Map<string, { weight: number; reps: number; unit?: string }>()
+  
+  // Ahora la clave es compuesta: ID de la rutina + ID del ejercicio
   if (routineDayId) {
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
       const setCounters = new Map<string, number>()
       for (const set of lastRoutineSession.workout_sets) {
-        if (set.routine_exercise_id) {
-          const idx = setCounters.get(set.routine_exercise_id) || 0
-          defaults.set(`${set.routine_exercise_id}-set-${idx}`, { weight: set.weight, reps: set.reps, unit: set.unit })
-          setCounters.set(set.routine_exercise_id, idx + 1)
+        if (set.routine_exercise_id && set.exercise_id) {
+          const comboKey = `${set.routine_exercise_id}-${set.exercise_id}`
+          const idx = setCounters.get(comboKey) || 0
+          defaults.set(`${comboKey}-set-${idx}`, { weight: set.weight, reps: set.reps, unit: set.unit })
+          setCounters.set(comboKey, idx + 1)
         }
       }
     }
@@ -387,6 +386,21 @@ function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: stri
     }
   }
   return defaults
+}
+
+function getLearnedSwaps(sessions: WorkoutSessionWithSets[]) {
+  const learned = new Map<string, Set<string>>()
+  sessions.forEach(session => {
+    session.workout_sets?.forEach(set => {
+      // Si la serie tiene routine_exercise_id pero el exercise_id NO ES el original, la app aprende que a veces lo cambias por este.
+      // (Para simplificar sin tener el catálogo completo en la query, guardamos todo cruce histórico)
+      if (set.routine_exercise_id && set.exercise_id) {
+        if (!learned.has(set.routine_exercise_id)) learned.set(set.routine_exercise_id, new Set())
+        learned.get(set.routine_exercise_id)!.add(set.exercise_id)
+      }
+    })
+  })
+  return learned
 }
 
 function getExplicitAlternatives(exercise: Exercise, catalog: Exercise[]) {
@@ -409,6 +423,7 @@ export default function Workout() {
   const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
   const { data: allExercises = [] } = useQuery({ queryKey: ['exercises', 'catalog'], queryFn: fetchExercises })
   const defaultsMap = useMemo(() => getSmartDefaults(recentSessions, activeSession?.routine_day_id ?? null), [recentSessions, activeSession?.routine_day_id])
+  const learnedSwaps = useMemo(() => getLearnedSwaps(recentSessions), [recentSessions])
 
   const [elapsed, setElapsed] = useState(0)
   const [showTimeEditor, setShowTimeEditor] = useState(false)
@@ -512,6 +527,7 @@ export default function Workout() {
                     workoutEx={workoutEx} 
                     allExercises={allExercises} 
                     defaultsMap={defaultsMap} 
+                    learnedSwaps={learnedSwaps}
                     swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} 
                     onSwapExercise={(targetEx: Exercise) => replaceExercise(workoutEx.exercise.id, targetEx)} 
                     isLastInSuperset={exIdxInGroup === group.length - 1}

@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot } from 'lucide-react'
-import { fetchExercises, createStructuredRoutine } from '../lib/queries'
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info } from 'lucide-react'
+import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
 
 interface ParsedExercise {
@@ -10,6 +10,7 @@ interface ParsedExercise {
   originalName: string
   target_sets: number
   target_reps: number
+  is_new?: boolean
   config: { sets_config: { reps: number; weight: number }[] }
 }
 
@@ -24,6 +25,7 @@ interface ParsedRoutine {
   notes: string
   days: ParsedDay[]
   errors: string[]
+  newExercisesCount: number
 }
 
 const normalize = (str: string) => 
@@ -40,7 +42,7 @@ export default function RoutineBuilder() {
   })
 
   const parsedResult = useMemo(() => {
-    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [] }
+    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], newExercisesCount: 0 }
     if (!text.trim()) return result
 
     const lines = text.split('\n')
@@ -67,26 +69,17 @@ export default function RoutineBuilder() {
         }
 
         const [exName, setsStr] = t.split('|').map(s => s.trim())
-        const ex = allExercises.find(e => normalize(e.name) === normalize(exName))
-        if (!ex) {
-           result.errors.push(`Línea ${i + 1}: El ejercicio "${exName}" no existe en tu catálogo.`)
-           continue
-        }
-
-        // ---> NUEVO PARSER MÁS INTELIGENTE QUE ENTIENDE PESOS CON '@' <---
+        
         let target_sets = 0;
         let sets_config: { reps: number; weight: number }[] = [];
 
-        // Buscamos formato simple: "4x10" o "4x10 @ 60"
         const simpleMatch = setsStr.match(/^(\d+)\s*[xX*]\s*(\d+)(?:\s*@\s*(\d+(?:\.\d+)?))?/);
-        
         if (simpleMatch && !setsStr.includes(',')) {
             target_sets = parseInt(simpleMatch[1]);
             const reps = parseInt(simpleMatch[2]);
             const weight = simpleMatch[3] ? parseFloat(simpleMatch[3]) : 0;
             sets_config = Array(target_sets).fill({ reps, weight });
         } else {
-            // Buscamos formato por serie: "10@50, 8@55, 6@60" o simplemente "10, 8, 6"
             const setsArr = setsStr.split(',').map(s => s.trim());
             target_sets = setsArr.length;
             sets_config = setsArr.map(s => {
@@ -97,13 +90,28 @@ export default function RoutineBuilder() {
             });
         }
 
-        currentDay.exercises.push({
-           exercise_id: ex.id,
-           originalName: ex.name,
-           target_sets,
-           target_reps: sets_config[0]?.reps || 10,
-           config: { sets_config }
-        })
+        const ex = allExercises.find(e => normalize(e.name) === normalize(exName))
+        
+        if (!ex) {
+           // ---> MAGIA: En lugar de dar error, lo marcamos para crearlo <---
+           result.newExercisesCount++
+           currentDay.exercises.push({
+              exercise_id: 'NEW', 
+              originalName: exName,
+              target_sets,
+              target_reps: sets_config[0]?.reps || 10,
+              is_new: true,
+              config: { sets_config }
+           })
+        } else {
+           currentDay.exercises.push({
+              exercise_id: ex.id,
+              originalName: ex.name,
+              target_sets,
+              target_reps: sets_config[0]?.reps || 10,
+              config: { sets_config }
+           })
+        }
       }
     }
 
@@ -114,9 +122,23 @@ export default function RoutineBuilder() {
   } , [text, allExercises])
 
   const saveMutation = useMutation({
-    mutationFn: () => createStructuredRoutine(parsedResult.name, parsedResult.folder, parsedResult.notes, parsedResult.days),
+    mutationFn: async () => {
+      // 1. Si hay ejercicios nuevos, los creamos en Supabase primero
+      const daysToSave = [...parsedResult.days]
+      for (const day of daysToSave) {
+         for (const ex of day.exercises) {
+            if (ex.is_new) {
+               const createdEx = await createExercise({ name: ex.originalName, muscle_group: 'Otro', is_public: false })
+               ex.exercise_id = createdEx.id
+            }
+         }
+      }
+      // 2. Creamos la rutina usando los IDs nuevos
+      return createStructuredRoutine(parsedResult.name, parsedResult.folder, parsedResult.notes, daysToSave)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
+      queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] }) // Refrescamos catálogo por si se añadieron
       navigate('/routines')
     },
     onError: (error: any) => alert(`Error al guardar: ${error.message}`)
@@ -142,11 +164,19 @@ export default function RoutineBuilder() {
           </ul>
         </div>
       ) : text.trim().length > 10 ? (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-2xl mb-4 flex items-center justify-between text-sm font-bold">
-          <div className="flex items-center gap-2"><CheckCircle2 size={18} /> Todo correcto.</div>
-          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-500 text-zinc-950 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform">
-            <Play size={16} fill="currentColor" /> Guardar e Iniciar
-          </button>
+        <div className="flex flex-col gap-3 mb-4">
+           {parsedResult.newExercisesCount > 0 && (
+             <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-3 rounded-2xl flex items-center gap-2 text-sm font-bold">
+               <Info size={18} className="flex-shrink-0" />
+               Se crearán {parsedResult.newExercisesCount} ejercicios nuevos automáticamente en tu catálogo privado.
+             </div>
+           )}
+           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-2xl flex items-center justify-between text-sm font-bold">
+             <div className="flex items-center gap-2"><CheckCircle2 size={18} /> Todo correcto.</div>
+             <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-500 text-zinc-950 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform">
+               <Play size={16} fill="currentColor" /> Guardar e Iniciar
+             </button>
+           </div>
         </div>
       ) : null}
 
@@ -179,9 +209,12 @@ export default function RoutineBuilder() {
                 <h3 className="text-lg font-bold text-emerald-500 mb-3 pb-2 border-b border-zinc-800/50">{day.name}</h3>
                 <div className="flex flex-col gap-2">
                   {day.exercises.map((ex, eIdx) => (
-                    <div key={eIdx} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
+                    <div key={eIdx} className={`bg-zinc-950 border p-3 rounded-xl flex items-center justify-between ${ex.is_new ? 'border-yellow-500/30' : 'border-zinc-800'}`}>
                       <div>
-                        <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
+                          {ex.is_new && <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO</span>}
+                        </div>
                         <p className="text-[11px] text-zinc-500 mt-1 uppercase tracking-wider font-medium">
                           {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => s.weight > 0 ? `${s.reps}@${s.weight}` : `${s.reps}`).join(', ')}
                         </p>
