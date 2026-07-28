@@ -5,22 +5,21 @@ import type { WorkoutSessionOptions, WorkoutExercise, Exercise, LoggedSet } from
 interface WorkoutStore {
   activeSession: (WorkoutSessionOptions & { start_time: string; name?: string }) | null
   workoutExercises: WorkoutExercise[]
-  sessionNotes: string // <-- NUEVO: Notas generales
+  sessionNotes: string
   restEndsAt: number | null
   isResting: boolean 
   
   startSession: (options: WorkoutSessionOptions) => void
   startRoutine: (routine: any, day: any) => void
-  adjustSessionStartTime: (deltaMinutes: number) => void // <-- NUEVO: Editar el cronómetro
-  setSessionNotes: (notes: string) => void // <-- NUEVO
+  adjustSessionStartTime: (deltaMinutes: number) => void 
+  setSessionNotes: (notes: string) => void 
 
   addExercise: (exercise: Exercise, meta?: WorkoutExercise['meta']) => void
   replaceExercise: (oldExerciseId: string, newExercise: Exercise) => void
   removeExercise: (exerciseId: string) => void
-  reorderExercises: (newList: WorkoutExercise[]) => void // <-- NUEVO: Drag & Drop
+  reorderExercises: (newList: WorkoutExercise[]) => void 
   updateExerciseUnit: (exerciseId: string, unit: string) => void 
 
-  // <-- ACTUALIZADO: Permite inyectar RIR y set_type
   addSet: (exerciseId: string, weight: number, reps: number, meta?: Partial<LoggedSet>) => void
   updateSet: (exerciseId: string, setIndex: number, updates: Partial<LoggedSet>) => void
   removeSet: (exerciseId: string, setIndex: number) => void
@@ -52,6 +51,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       startRoutine: (routine, day) =>
         set(() => {
           const rawExercises = day.routine_exercises || day.exercises || []
+          
           const loadedExercises = rawExercises.map((rx: any) => {
             const baseExercise = rx.exercise || rx
             const realId = baseExercise.exercise_id || rx.exercise_id || baseExercise.id
@@ -62,10 +62,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
               sets: [],
               meta: {
                 routine_exercise_id: rx.id || rx.routine_exercise_id,
-                superset_id: rx.superset_id || null, // <-- Importante recuperar superseries
+                superset_id: rx.superset_id || null, 
                 set_type: 'normal',
                 default_reps: targetReps,
-                default_weight: 0
+                default_weight: 0,
+                config: rx.config || null // <--- SOLUCIÓN: Ahora arrastramos el config (y las alternativas) a la sesión
               }
             }
           })
@@ -88,7 +89,6 @@ export const useWorkoutStore = create<WorkoutStore>()(
         set((state) => {
           if (!state.activeSession) return state;
           const current = new Date(state.activeSession.start_time);
-          // Restar al inicio significa SUMAR tiempo transcurrido, y viceversa.
           current.setMinutes(current.getMinutes() - deltaMinutes);
           return { activeSession: { ...state.activeSession, start_time: current.toISOString() } }
         }),
