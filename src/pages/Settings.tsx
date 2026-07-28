@@ -31,15 +31,21 @@ Para crear EJERCICIOS sueltos para mi catálogo, usa este formato (separa cada u
 Nombre: [Nombre]
 Grupo: [Músculo]
 Equipamiento: [Barra / Mancuernas / Polea / Máquina / Peso Corporal / Smith / Kettlebell]
+Usa barra: [sí / no]
+Peso barra: [número en kg, ej: 20]
+Visibilidad: [público / privado]
 Imagen: [URL]
 Descripcion: [Tips]
 
 Ejemplo de Ejercicios:
-Nombre: Curl de Bíceps
-Grupo: Brazos
-Equipamiento: Polea
-Imagen: https://ejemplo.com/curl.gif
-Descripcion: Mantén los codos pegados al torso.`;
+Nombre: Press de Banca
+Grupo: Pecho
+Equipamiento: Barra
+Usa barra: sí
+Peso barra: 20
+Visibilidad: público
+Imagen: https://ejemplo.com/bench.gif
+Descripcion: Mantén los omóplatos retraídos.`;
 
 export const COPY_AI_PROMPT = () => {
   navigator.clipboard.writeText(SYSTEM_PROMPT);

@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp, Globe2, Lock, Sparkles, X } from 'lucide-react'
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
-import { COPY_AI_PROMPT } from './Settings'
-import type { Exercise } from '../types/workout'
-import { SYSTEM_PROMPT } from './Settings'
+import { COPY_AI_PROMPT, SYSTEM_PROMPT } from './Settings'
 import { useSettingsStore } from '../store/useSettingsStore'
+import type { Exercise } from '../types/workout'
 
 // --- FUNCIONES DE LIMPIEZA Y SIMILITUD ---
 const normalize = (str: string) => 
@@ -63,8 +62,26 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
         for (const [k, v] of Object.entries(eqMap)) {
            if (val.includes(k)) matched = v
         }
-        ex.config = { ...ex.config, equipment: matched as any }
+        ex.config = { ...(ex.config || {}), equipment: matched as any }
         isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('usa barra:') || lowerLine.startsWith('usa barra olímpica:')) {
+        const val = line.split(':')[1]?.trim().toLowerCase() || ''
+        const uses = val === 'si' || val === 'sí' || val === 'true' || val === 'yes'
+        ex.config = { ...(ex.config || {}), uses_barbell: uses }
+        isParsingDesc = false
+      }
+      else if (lowerLine.startsWith('peso barra:') || lowerLine.startsWith('barra kg:')) {
+        const val = parseFloat(line.split(':')[1]?.trim() || '0')
+        if (!isNaN(val)) {
+          ex.config = { ...(ex.config || {}), bar_weight: val }
+        }
+        isParsingDesc = false
+      }
+      else if (lowerLine.startsWith('visibilidad:')) {
+        const val = line.substring(12).trim().toLowerCase()
+        ex.is_public = val.includes('public') || val.includes('público')
+        isParsingDesc = false
       }
       else if (lowerLine.startsWith('imagen:')) { 
         let imgStr = line.substring(7).trim()
@@ -132,12 +149,11 @@ export default function RoutineBuilder() {
   const [showExDefs, setShowExDefs] = useState(false)
   const [importAsPublic, setImportAsPublic] = useState(false)
 
-  const { aiApiKey } = useSettingsStore() // <--- Extraemos la key
+  const { aiApiKey } = useSettingsStore()
   const [aiInput, setAiInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [showAiModal, setShowAiModal] = useState(false)
   
-  // Estado para guardar las decisiones del usuario frente a las búsquedas difusas
   const [resolutions, setResolutions] = useState<Record<string, string>>({})
 
   const { data: allExercises = [] } = useQuery({
@@ -156,14 +172,12 @@ export default function RoutineBuilder() {
     const lines = text.split('\n')
     let currentDay: ParsedDay | null = null
 
-    // Función auxiliar para procesar un nombre y buscar difuso si no hay exacto
     const resolveEntity = (name: string): ParsedEntity => {
       const ex = allExercises.find(e => normalize(e.name) === normalize(name))
       if (ex) {
         return { originalName: name, exercise_id: ex.id, is_new: false, is_specified: false, fuzzy_matches: [] }
       }
       
-      // Si no hay exacto, buscamos difusos (> 60% similitud)
       const fuzzy = allExercises
         .map(e => ({ id: e.id, name: e.name, score: getSimilarity(name, e.name) }))
         .filter(m => m.score > 0.6)
@@ -244,7 +258,6 @@ export default function RoutineBuilder() {
     return result
   } , [text, exercisesText, allExercises])
 
-  // --- CÁLCULO DINÁMICO DE ESTADÍSTICAS ---
   const stats = useMemo(() => {
     let finalAuto = 0; let finalSpec = 0; let finalExist = 0;
     const processed = new Set<string>();
@@ -296,7 +309,8 @@ export default function RoutineBuilder() {
                    muscle_group: manualDef?.muscle_group || 'Otro', 
                    description: manualDef?.description || '',
                    image_url: manualDef?.image_url || '',
-                   is_public: importAsPublic
+                   config: manualDef?.config || {}, // <--- Configuración completa (equipamiento, barra, etc.)
+                   is_public: manualDef?.is_public ?? importAsPublic // <--- Visibilidad personalizada
                  });
                  ex.exercise_id = createdEx.id;
                  newExMap.set(norm, createdEx.id);
@@ -321,7 +335,8 @@ export default function RoutineBuilder() {
                          muscle_group: manualDef?.muscle_group || 'Otro', 
                          description: manualDef?.description || '',
                          image_url: manualDef?.image_url || '',
-                         is_public: importAsPublic
+                         config: manualDef?.config || {},
+                         is_public: manualDef?.is_public ?? importAsPublic
                        });
                        altIds.push(createdAlt.id);
                        newExMap.set(normAlt, createdAlt.id);
@@ -344,7 +359,6 @@ export default function RoutineBuilder() {
     onError: (error: any) => alert(`Error al guardar: ${error.message}`)
   })
 
-  // Helper para renderizar los títulos de los ejercicios interactivos
   const renderEntityBadge = (ent: ParsedEntity) => {
     if (!ent.is_new) {
       return <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Ya en Catálogo</span>
@@ -369,7 +383,6 @@ export default function RoutineBuilder() {
       )
     }
 
-    // Es nuevo pero sin matches difusos
     return ent.is_specified 
       ? <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Nuevo (Definido)</span>
       : <span className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Nuevo (Auto)</span>
@@ -421,7 +434,6 @@ export default function RoutineBuilder() {
         </button>
         <h1 className="text-xl font-bold">Importador Estructurado</h1>
         <div className="flex items-center gap-2">
-          {/* ---> NUEVO BOTÓN DE IA <--- */}
           <button onClick={() => setShowAiModal(true)} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 p-2.5 rounded-xl font-bold active:scale-95 transition-transform flex items-center gap-1.5 text-xs">
             <Sparkles size={16} /> IA
           </button>
@@ -538,6 +550,10 @@ export default function RoutineBuilder() {
                 <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
 {`Nombre: Sentadilla Búlgara
 Grupo: Piernas
+Equipamiento: Mancuernas
+Usa barra: no
+Peso barra: 20
+Visibilidad: privado
 Imagen: https://link-al-gif.com/img.gif
 Descripcion: Mantén el torso recto...`}
                 </pre>
