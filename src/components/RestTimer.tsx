@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Plus, Minus } from 'lucide-react'
+import { X, Plus, Minus, Timer } from 'lucide-react'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 
 export default function RestTimer() {
-  // Leemos si el cerebro global nos dice que debemos descansar
   const { isResting, restEndsAt, completeSet, stopRest } = useWorkoutStore()
   
   const [timeLeft, setTimeLeft] = useState(0)
@@ -15,7 +14,6 @@ export default function RestTimer() {
     return Math.max(0, Math.ceil((new Date(restEndsAt).getTime() - Date.now()) / 1000))
   }
 
-  // Cuando marcamos una serie, Zustand activa isResting y guarda el timestamp final.
   useEffect(() => {
     if (isResting) {
       setTimeLeft(computeTimeLeft())
@@ -28,13 +26,11 @@ export default function RestTimer() {
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>
-    
     if (isVisible) {
       interval = setInterval(() => {
         setTimeLeft(computeTimeLeft())
       }, 1000)
     }
-    
     return () => clearInterval(interval)
   }, [isVisible, restEndsAt])
 
@@ -46,6 +42,7 @@ export default function RestTimer() {
     if (isVisible && timeLeft <= 0) {
       closeTimer()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, timeLeft])
 
   const adjustTime = (deltaSeconds: number) => {
@@ -92,7 +89,6 @@ export default function RestTimer() {
     }
   }, [isVisible, timeLeft])
 
-  // Convierte los segundos en formato 01:30
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
     const s = seconds % 60
@@ -102,37 +98,26 @@ export default function RestTimer() {
   if (!isVisible) return null
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 bg-zinc-800 border border-zinc-700 rounded-2xl p-4 shadow-2xl shadow-black/50 flex items-center justify-between z-50 animate-in slide-in-from-bottom-5 fade-in duration-200">
-      
-      {/* Botón de restar tiempo */}
-      <button 
-        onClick={() => adjustTime(-30)}
-        className="bg-zinc-700/50 p-2 rounded-lg text-zinc-300 active:bg-zinc-700"
-      >
-        <Minus size={20} />
-      </button>
+    <div className="w-full flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300 mt-3">
+       
+       <span className="text-xs text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1.5 hidden sm:flex">
+         <Timer size={14} /> Descanso
+       </span>
+       <span className="text-xs text-emerald-500 font-bold uppercase tracking-widest flex sm:hidden">
+         <Timer size={16} />
+       </span>
+       
+       <div className="flex items-center gap-3">
+         <button onClick={() => adjustTime(-30)} className="text-emerald-500/70 hover:text-emerald-400 active:scale-95 p-1.5 bg-emerald-500/10 rounded-md"><Minus size={16} /></button>
+         <span className="text-emerald-400 font-mono font-bold text-lg min-w-[3rem] text-center">{formatTime(timeLeft)}</span>
+         <button onClick={() => adjustTime(30)} className="text-emerald-500/70 hover:text-emerald-400 active:scale-95 p-1.5 bg-emerald-500/10 rounded-md"><Plus size={16} /></button>
+       </div>
 
-      {/* Reloj */}
-      <div className="text-center">
-        <p className="text-xs text-emerald-500 font-bold mb-1 uppercase tracking-wider">Descanso</p>
-        <p className="text-3xl font-mono font-bold text-zinc-100">{formatTime(timeLeft)}</p>
-      </div>
-
-      {/* Botón de sumar tiempo */}
-      <button 
-        onClick={() => adjustTime(30)}
-        className="bg-zinc-700/50 p-2 rounded-lg text-zinc-300 active:bg-zinc-700"
-      >
-        <Plus size={20} />
-      </button>
-
-      {/* Botón para cerrar/saltar descanso */}
-      <button 
-        onClick={closeTimer}
-        className="absolute -top-3 -right-3 bg-zinc-700 border-2 border-zinc-800 text-zinc-300 p-1.5 rounded-full shadow-lg"
-      >
-        <X size={16} />
-      </button>
+       <div className="flex items-center gap-2">
+         <div className="w-px h-5 bg-emerald-500/20 hidden sm:block mx-1"></div>
+         <button onClick={closeTimer} className="text-emerald-500/50 hover:text-emerald-500 active:scale-95 p-1"><X size={18} /></button>
+       </div>
+       
     </div>
   )
 }
