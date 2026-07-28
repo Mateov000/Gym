@@ -12,23 +12,24 @@ interface SettingsStore {
   showQuickCompleteButton: boolean
   setShowQuickCompleteButton: (val: boolean) => void
   
-  // Bóveda Global de Unidades Custom
   globalCustomUnits: string[]
   addGlobalCustomUnit: (unit: string) => void
   removeGlobalCustomUnit: (unit: string) => void
 
-  // Grafo de Unidades Custom
   equivalencies: Equivalency[]
   addEquivalency: (from: string, to: string, multiplier: number) => void
   removeEquivalency: (id: string) => void
   
-  // Memoria de Notas Persistentes
   routineNotes: Record<string, string>
   setRoutineNote: (routineExId: string, note: string) => void
 
-  // ---> NUEVO: Memoria de la última unidad usada por ejercicio <---
   exerciseUnits: Record<string, string>
   setExerciseUnit: (routineExId: string, unit: string) => void
+
+  // ---> NUEVO: Biblioteca de Rutinas Sincronizadas <---
+  subscribedRoutines: string[]
+  addSubscribedRoutine: (id: string) => void
+  removeSubscribedRoutine: (id: string) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -64,10 +65,17 @@ export const useSettingsStore = create<SettingsStore>()(
       setRoutineNote: (routineExId, note) =>
         set((state) => ({ routineNotes: { ...state.routineNotes, [routineExId]: note } })),
 
-      // ---> NUEVO: Funciones para recordar unidades <---
       exerciseUnits: {},
       setExerciseUnit: (routineExId, unit) =>
         set((state) => ({ exerciseUnits: { ...state.exerciseUnits, [routineExId]: unit } })),
+
+      subscribedRoutines: [],
+      addSubscribedRoutine: (id) => set((state) => ({
+        subscribedRoutines: state.subscribedRoutines.includes(id) ? state.subscribedRoutines : [...state.subscribedRoutines, id]
+      })),
+      removeSubscribedRoutine: (id) => set((state) => ({
+        subscribedRoutines: state.subscribedRoutines.filter(r => r !== id)
+      })),
     }),
     {
       name: 'app-settings',

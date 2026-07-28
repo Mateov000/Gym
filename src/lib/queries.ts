@@ -25,7 +25,6 @@ export async function fetchExercises(): Promise<Exercise[]> {
   return (data ?? []) as Exercise[]
 }
 
-// ---> NUEVO: Consulta del historial de un ejercicio específico <---
 export async function fetchExerciseHistory(exerciseId: string) {
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -88,7 +87,7 @@ export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWit
 interface FinishWorkoutInput {
   startTime: string
   workoutExercises: WorkoutExercise[]
-  sessionNotes?: string // <-- Añadido
+  sessionNotes?: string 
   sessionOptions?: WorkoutSessionOptions
 }
 
@@ -118,7 +117,7 @@ export async function finishWorkoutSession({ startTime, workoutExercises, sessio
       user_id: user.id,
       start_time: startTime,
       end_time: new Date().toISOString(),
-      notes: sessionNotes || null, // <-- Guardamos la nota general
+      notes: sessionNotes || null, 
       routine_id: sessionOptions?.routine_id ?? null,
       routine_day_id: sessionOptions?.routine_day_id ?? null,
       disable_prs: sessionOptions?.disable_prs ?? false,
@@ -136,8 +135,8 @@ export async function finishWorkoutSession({ startTime, workoutExercises, sessio
       weight: set.weight,
       reps: set.reps,
       unit: set.unit || 'kg', 
-      rir: set.rir ?? null, // <-- Guardamos RIR
-      set_type: set.set_type ?? workoutEx.meta?.set_type ?? 'normal', // <-- Guardamos si es calentamiento
+      rir: set.rir ?? null, 
+      set_type: set.set_type ?? workoutEx.meta?.set_type ?? 'normal', 
       is_completed: true,
       routine_exercise_id: set.routine_exercise_id ?? workoutEx.meta?.routine_exercise_id ?? null,
       superset_id: set.superset_id ?? workoutEx.meta?.superset_id ?? null,
@@ -161,12 +160,8 @@ export async function finishWorkoutSession({ startTime, workoutExercises, sessio
 // ==========================================
 // 3. RUTINAS (CRUD Y CREADORES)
 // ==========================================
-// ---> NUEVO: Actualizar un ejercicio permanentemente en la rutina <---
 export async function updateRoutineExerciseSwap(routineExerciseId: string, newExerciseId: string) {
-  const { error } = await supabase
-    .from('routine_exercises')
-    .update({ exercise_id: newExerciseId })
-    .eq('id', routineExerciseId)
+  const { error } = await supabase.from('routine_exercises').update({ exercise_id: newExerciseId }).eq('id', routineExerciseId)
   if (error) throw error
 }
 
@@ -177,6 +172,21 @@ export async function fetchRoutines(): Promise<RoutineWithDays[]> {
         routine_exercises ( id, routine_day_id, exercise_id, target_sets, target_reps, superset_id, set_type, pr_mode, pr_fixed_weight, config )
       )
     `).order('name')
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  const routines = (data ?? []) as RoutineWithDays[]
+  return routines.map((r) => ({ ...r, routine_days: (r.routine_days ?? []).sort((a, b) => a.day_order - b.day_order) }))
+}
+
+// ---> NUEVO: Busca rutinas específicas (Para las Suscritas) <---
+export async function fetchRoutinesByIds(ids: string[]): Promise<RoutineWithDays[]> {
+  if (!ids || ids.length === 0) return []
+  const { data, error } = await supabase.from('routines').select(`
+      id, name, folder, notes, version, is_pr_opt_out, config,
+      routine_days ( id, routine_id, name, day_order, config,
+        routine_exercises ( id, routine_day_id, exercise_id, target_sets, target_reps, superset_id, set_type, pr_mode, pr_fixed_weight, config )
+      )
+    `).in('id', ids).order('name')
+  
   if (error) { if (isMissingTableError(error)) return []; throw error; }
   const routines = (data ?? []) as RoutineWithDays[]
   return routines.map((r) => ({ ...r, routine_days: (r.routine_days ?? []).sort((a, b) => a.day_order - b.day_order) }))
@@ -228,7 +238,7 @@ export async function cloneRoutine(routineId: string) {
   if (!original) throw new Error('Rutina no encontrada')
 
   const { data: newRoutine, error: routineErr } = await supabase.from('routines').insert({ 
-      user_id: user.id, name: `${original.name} (Clon)`, folder: original.folder, notes: original.notes, is_pr_opt_out: original.is_pr_opt_out, config: original.config 
+      user_id: user.id, name: `${original.name} (Copia)`, folder: original.folder, notes: original.notes, is_pr_opt_out: original.is_pr_opt_out, config: original.config 
     }).select('id').single()
   if (routineErr) throw routineErr
 
@@ -291,7 +301,7 @@ export async function createStructuredRoutine(name: string, folder: string, note
 // ==========================================
 export async function fetchSessionById(id: string): Promise<WorkoutSessionWithSets | null> {
   const { data, error } = await supabase.from('workout_sessions').select(`
-      id, start_time, end_time, routine_id, routine_day_id,
+      id, start_time, end_time, routine_id, routine_day_id, notes,
       workout_sets ( id, exercise_id, routine_exercise_id, weight, reps, unit, rir, set_type, is_completed )
     `).eq('id', id).single()
   if (error) { if (isMissingTableError(error)) return null; throw error; }

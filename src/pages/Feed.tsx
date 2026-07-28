@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
-import { Dumbbell, Calendar, Clock, Play, Edit2, Timer } from 'lucide-react' // <-- Añadido Timer
+import { Dumbbell, Calendar, Clock, Play, Edit2, Timer } from 'lucide-react' 
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWorkoutHistory } from '../lib/queries'
 import type { WorkoutSessionWithSets } from '../types/workout'
 
-// ---> NUEVA FUNCIÓN: Calculadora de Duración <---
 function formatDuration(start: string, end?: string | null) {
   if (!end) return null
   const diffMs = new Date(end).getTime() - new Date(start).getTime()
@@ -35,10 +34,8 @@ export default function Feed() {
       sessionStorage.removeItem('gym-auto-resume-done')
       return
     }
-
     const alreadyResumed = sessionStorage.getItem('gym-auto-resume-done') === '1'
     if (alreadyResumed || workoutExercises.length === 0) return
-
     sessionStorage.setItem('gym-auto-resume-done', '1')
     navigate('/workout', { replace: true })
   }, [activeSession, navigate, workoutExercises.length])
@@ -48,20 +45,12 @@ export default function Feed() {
       <h1 className="text-3xl font-bold text-zinc-100 mb-6">Tu Progreso</h1>
       
       {activeSession ? (
-        <button 
-          onClick={() => navigate('/workout')}
-          className="w-full bg-blue-500 text-zinc-950 font-bold text-lg p-4 rounded-xl mb-8 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
-        >
-          <Play size={24} />
-          Continuar Entrenamiento ({workoutExercises.length} ej.)
+        <button onClick={() => navigate('/workout')} className="w-full bg-blue-500 text-zinc-950 font-bold text-lg p-4 rounded-xl mb-8 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+          <Play size={24} /> Continuar Entrenamiento ({workoutExercises.length} ej.)
         </button>
       ) : (
-        <button 
-          onClick={() => navigate('/exercises')}
-          className="w-full bg-emerald-500 text-zinc-950 font-bold text-lg p-4 rounded-xl mb-8 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-        >
-          <Dumbbell size={24} />
-          Iniciar Entrenamiento
+        <button onClick={() => navigate('/exercises')} className="w-full bg-emerald-500 text-zinc-950 font-bold text-lg p-4 rounded-xl mb-8 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+          <Dumbbell size={24} /> Iniciar Entrenamiento
         </button>
       )}
       
@@ -75,19 +64,22 @@ export default function Feed() {
       ) : (
         <div className="flex flex-col gap-4">
           {sessions.map((session: WorkoutSessionWithSets) => {
-            const duration = formatDuration(session.start_time, session.end_time) // Calculamos la duración
+            const duration = formatDuration(session.start_time, session.end_time)
 
             return (
-              <div key={session.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors">
+              <div 
+                key={session.id} 
+                onClick={() => navigate(`/session/${session.id}`)}
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-zinc-700 transition-colors cursor-pointer active:scale-[0.98]"
+              >
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-lg font-bold text-zinc-100">Sesión Completada</h3>
-                  
                   <div className="flex items-center gap-2">
                     <span className="text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md text-xs font-bold border border-emerald-500/20">
                       {session.workout_sets?.length || 0} series
                     </span>
                     <button 
-                      onClick={() => navigate(`/session/${session.id}/edit`)}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/session/${session.id}/edit`) }}
                       className="text-zinc-400 hover:text-emerald-500 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800 transition-colors active:scale-95"
                     >
                       <Edit2 size={16} />
@@ -95,7 +87,6 @@ export default function Feed() {
                   </div>
                 </div>
                 
-                {/* ---> NUEVO: Bloque de Información Expandido <--- */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400">
                   <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg">
                     <Calendar className="w-4 h-4 text-emerald-500" />
@@ -105,8 +96,6 @@ export default function Feed() {
                     <Clock className="w-4 h-4 text-emerald-500" />
                     <span>{new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                   </div>
-                  
-                  {/* Solo mostramos la duración si existe (los entrenamientos viejos no la tendrán) */}
                   {duration && (
                     <div className="flex items-center gap-1.5 bg-zinc-950 px-3 py-1.5 rounded-lg border border-zinc-800">
                       <Timer className="w-4 h-4 text-emerald-500" />
