@@ -51,6 +51,8 @@ export default function Settings() {
   const { 
     showQuickCompleteButton, 
     setShowQuickCompleteButton,
+    enableRir,
+    setEnableRir,
     globalCustomUnits,
     addGlobalCustomUnit,
     removeGlobalCustomUnit,
@@ -102,8 +104,7 @@ export default function Settings() {
 
       <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4 mb-6">
         <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Bot size={16} />
-          Asistente IA
+          <Bot size={16} /> Asistente IA
         </h2>
         <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
           Copia este "Prompt" y envíaselo a tu Inteligencia Artificial favorita (ChatGPT, Claude, Gemini). Le enseñará a hablar el mismo idioma que esta aplicación para que te diseñe rutinas que puedas importar con un click.
@@ -112,15 +113,14 @@ export default function Settings() {
           onClick={COPY_AI_PROMPT}
           className="w-full py-3 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl font-bold flex justify-center items-center gap-2 transition-colors hover:bg-indigo-500/20 active:scale-95"
         >
-          <Copy size={18} />
-          Copiar Instrucciones para IA
+          <Copy size={18} /> Copiar Instrucciones para IA
         </button>
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-6">
         <h2 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-6">Entrenamiento</h2>
         
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div className="pr-4">
             <p className="font-bold text-zinc-100">Botón rápido de completado</p>
             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
@@ -132,6 +132,22 @@ export default function Settings() {
             className={`relative w-14 h-7 rounded-full transition-colors flex-shrink-0 ${showQuickCompleteButton ? 'bg-emerald-500' : 'bg-zinc-700'}`}
           >
             <div className={`absolute top-1 left-1 bg-zinc-950 w-5 h-5 rounded-full transition-transform ${showQuickCompleteButton ? 'translate-x-7' : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        {/* ---> NUEVO BOTÓN PARA RIR <--- */}
+        <div className="flex items-center justify-between mb-8 border-t border-zinc-800 pt-6">
+          <div className="pr-4">
+            <p className="font-bold text-zinc-100">Mostrar RIR (Reps en Reserva)</p>
+            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+              Activa un campo extra en tus series para registrar a cuántas repeticiones del fallo muscular te quedaste.
+            </p>
+          </div>
+          <button 
+            onClick={() => setEnableRir(!enableRir)}
+            className={`relative w-14 h-7 rounded-full transition-colors flex-shrink-0 ${enableRir ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+          >
+            <div className={`absolute top-1 left-1 bg-zinc-950 w-5 h-5 rounded-full transition-transform ${enableRir ? 'translate-x-7' : 'translate-x-0'}`} />
           </button>
         </div>
 
