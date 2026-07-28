@@ -6,7 +6,6 @@ import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/
 import { COPY_AI_PROMPT } from './Settings'
 import type { Exercise } from '../types/workout'
 import { SYSTEM_PROMPT } from './Settings'
-import { Sparkles } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 
 // --- FUNCIONES DE LIMPIEZA Y SIMILITUD ---
