@@ -5,12 +5,13 @@ const DEFAULT_CONFIG: Required<ExerciseConfig> = {
   rest_time_seconds: 90,
   use_rir: false,
   weight_unit: 'kg',
-  custom_units: [], // <-- AÑADIDO PARA UNIDADES CUSTOM
+  custom_units: [],
   bar_weight: 20,
   available_plates: [20, 15, 10, 5, 2.5, 1.25],
   show_images: true,
   show_google_search: false,
   sets_config: [], 
+  routine_alternatives: [], // <--- AÑADIDO: Inicializamos el arreglo vacío para evitar el error TS2741
 }
 
 export function resolveExerciseConfig(
