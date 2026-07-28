@@ -81,7 +81,7 @@ export default function SessionDetails() {
       )}
 
       <div className="flex flex-col gap-4">
-        {Object.entries(groupedSets).map(([exerciseId, sets], index) => {
+        {Object.entries(groupedSets).map(([exerciseId, sets]) => {
           const exName = exercises.find(e => e.id === exerciseId)?.name || 'Ejercicio'
           return (
             <div key={exerciseId} className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
