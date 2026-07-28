@@ -17,32 +17,20 @@ import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, A
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
   if (fromUnit === toUnit) return value;
   if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
-
   const graph: Record<string, { to: string, factor: number }[]> = {};
   const addEdge = (u: string, v: string, f: number) => {
     if (!graph[u]) graph[u] = [];
     graph[u].push({ to: v, factor: f });
   };
-  addEdge('kg', 'lbs', 2.20462262);
-  addEdge('lbs', 'kg', 0.45359237);
-  equivalencies.forEach((eq: any) => {
-    addEdge(eq.from, eq.to, eq.multiplier);
-    addEdge(eq.to, eq.from, 1 / eq.multiplier);
-  });
-
+  addEdge('kg', 'lbs', 2.20462262); addEdge('lbs', 'kg', 0.45359237);
+  equivalencies.forEach((eq: any) => { addEdge(eq.from, eq.to, eq.multiplier); addEdge(eq.to, eq.from, 1 / eq.multiplier); });
   const queue: { unit: string, val: number }[] = [{ unit: fromUnit, val: value }];
   const visited = new Set<string>([fromUnit]);
-
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
-    if (unit === toUnit) {
-      return Math.round(val * 4) / 4;
-    }
+    if (unit === toUnit) return Math.round(val * 4) / 4;
     for (const neighbor of (graph[unit] || [])) {
-      if (!visited.has(neighbor.to)) {
-        visited.add(neighbor.to);
-        queue.push({ unit: neighbor.to, val: val * neighbor.factor });
-      }
+      if (!visited.has(neighbor.to)) { visited.add(neighbor.to); queue.push({ unit: neighbor.to, val: val * neighbor.factor }); }
     }
   }
   return Math.round(value * 4) / 4;
@@ -56,25 +44,10 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
   const [isEdited, setIsEdited] = useState(false)
   const [setType, setSetType] = useState<'normal' | 'warm_up' | 'drop_set'>(set.set_type || 'normal')
 
-  useEffect(() => {
-    setWeight(set.weight)
-    setReps(set.reps)
-    setRir(set.rir ?? '')
-    setSetType(set.set_type || 'normal')
-    setIsEdited(false)
-  }, [set])
+  useEffect(() => { setWeight(set.weight); setReps(set.reps); setRir(set.rir ?? ''); setSetType(set.set_type || 'normal'); setIsEdited(false) }, [set])
 
-  const handleSave = () => {
-    updateSet(exerciseId, index, { weight, reps, rir: rir !== '' ? Number(rir) : undefined, set_type: setType })
-    setIsEdited(false)
-  }
-
-  const toggleSetType = () => {
-    const next = setType === 'normal' ? 'warm_up' : setType === 'warm_up' ? 'drop_set' : 'normal'
-    setSetType(next)
-    setIsEdited(true)
-  }
-
+  const handleSave = () => { updateSet(exerciseId, index, { weight, reps, rir: rir !== '' ? Number(rir) : undefined, set_type: setType }); setIsEdited(false) }
+  const toggleSetType = () => { setSetType(setType === 'normal' ? 'warm_up' : setType === 'warm_up' ? 'drop_set' : 'normal'); setIsEdited(true) }
   const estimated1RM = (weight > 0 && reps > 1 && setType !== 'warm_up') ? Math.round(weight * (1 + reps / 30)) : weight
 
   return (
@@ -113,26 +86,19 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
   )
 }
 
-// --- MODAL DEL HISTORIAL ---
 const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () => void }) => {
   const { data: history, isLoading } = useQuery({ queryKey: ['exercise-history', exercise.id], queryFn: () => fetchExerciseHistory(exercise.id) })
-
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center animate-in fade-in duration-200">
       <div className="bg-zinc-900 w-full sm:w-[400px] sm:rounded-3xl rounded-t-3xl p-5 max-h-[80vh] flex flex-col relative animate-in slide-in-from-bottom-10">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-zinc-800 rounded-full text-zinc-400"><X size={20}/></button>
-        <div className="flex items-center gap-3 mb-6 pr-8">
-          <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500"><History size={24}/></div>
-          <h2 className="text-xl font-bold text-zinc-100 truncate">Historial</h2>
-        </div>
+        <div className="flex items-center gap-3 mb-6 pr-8"><div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500"><History size={24}/></div><h2 className="text-xl font-bold text-zinc-100 truncate">Historial</h2></div>
         <div className="overflow-y-auto flex-1 pr-2 space-y-4 pb-10">
           {isLoading ? <p className="text-zinc-500 text-center py-4">Buscando...</p> : 
            history?.length === 0 ? <p className="text-zinc-500 text-center py-4">No hay historial para este ejercicio.</p> :
            history?.map((session: any) => (
              <div key={session.id} className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-               <p className="text-xs font-bold text-emerald-500 mb-3 border-b border-zinc-800 pb-2">
-                 {new Date(session.start_time).toLocaleDateString()} a las {new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-               </p>
+               <p className="text-xs font-bold text-emerald-500 mb-3 border-b border-zinc-800 pb-2">{new Date(session.start_time).toLocaleDateString()} a las {new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                <div className="space-y-1">
                  {session.workout_sets.map((s: any, idx: number) => (
                    <div key={s.id} className="flex items-center gap-2 text-sm text-zinc-300">
@@ -155,20 +121,14 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
 // --- TRACKER INDIVIDUAL DEL EJERCICIO ---
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
-  
-  // ---> AQUÍ ESCUCHAMOS EL BOTÓN 'enableRir' DE LA CONFIGURACIÓN <---
   const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
-  
   const [showMenu, setShowMenu] = useState(false); const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
     if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio' && rawEx.name !== 'Ejercicio sin nombre') return rawEx as Exercise
     const targetId = (rawEx as any)?.exercise_id || (workoutEx as any).exercise_id || (rawEx as any)?.id || (workoutEx as any).id
-    if (targetId) {
-      const catalogMatch = allExercises.find((e: Exercise) => e.id === targetId)
-      if (catalogMatch) return catalogMatch
-    }
+    if (targetId) { const catalogMatch = allExercises.find((e: Exercise) => e.id === targetId); if (catalogMatch) return catalogMatch }
     return { id: targetId || '', name: (rawEx as any)?.name || 'Ejercicio sin nombre', muscle_group: '', image_url: '', description: '', config: null } as Exercise
   }, [workoutEx, allExercises])
 
@@ -180,66 +140,26 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
   const currentNote = routineNotes[routineExId] || '' 
   
   const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...(resolvedConfig.custom_units || []), ...globalCustomUnits]))
-  const [isCreatingUnit, setIsCreatingUnit] = useState(false)
-  const [newUnitText, setNewUnitText] = useState('')
-
+  const [isCreatingUnit, setIsCreatingUnit] = useState(false); const [newUnitText, setNewUnitText] = useState('')
   const targetSets = resolvedConfig.sets_config?.length > 0 ? resolvedConfig.sets_config.length : ((workoutEx.meta as any)?.target_sets || 3);
-  const currentSetIndex = sets.length
-  const isCompletedVisual = currentSetIndex >= targetSets
-
-  const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20)
-  const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [showSwapList, setShowSwapList] = useState(false)
-  const [showImage, setShowImage] = useState(false)
+  const currentSetIndex = sets.length; const isCompletedVisual = currentSetIndex >= targetSets
+  const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20); const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
+  const [isCompleted, setIsCompleted] = useState(false); const [showSwapList, setShowSwapList] = useState(false); const [showImage, setShowImage] = useState(false)
 
   useEffect(() => {
     const smartKey = `${routineExId}-${exercise.id}-set-${currentSetIndex}`
     const rDef = defaultsMap.get(smartKey)
     const pDef = resolvedConfig.sets_config?.[currentSetIndex] || resolvedConfig.sets_config?.[(resolvedConfig.sets_config?.length || 1) - 1]
     const gDef = defaultsMap.get(`global-${exercise.id}`)
-    
-    if (rDef) { 
-      setWeight(rDef.weight); setReps(rDef.reps)
-      if (rDef.unit && rDef.unit !== currentUnit) updateExerciseUnit(exercise.id, rDef.unit)
-    } 
+    if (rDef) { setWeight(rDef.weight); setReps(rDef.reps); if (rDef.unit && rDef.unit !== currentUnit) updateExerciseUnit(exercise.id, rDef.unit) } 
     else if (pDef) { setWeight(pDef.weight); setReps(pDef.reps) } 
-    else if (gDef && currentSetIndex === 0) { 
-      setWeight(gDef.weight); setReps(gDef.reps)
-      if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit)
-    }
+    else if (gDef && currentSetIndex === 0) { setWeight(gDef.weight); setReps(gDef.reps); if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSetIndex, exercise.id])
 
-  const handleUnitChange = (newUnit: string) => {
-    if (newUnit === 'NEW') { setIsCreatingUnit(true); return }
-    setWeight(convertWeight(weight, currentUnit, newUnit, equivalencies));
-    updateExerciseUnit(exercise.id, newUnit);
-    setExerciseUnit(routineExId, newUnit); 
-  }
-
-  const handleSaveNewUnit = () => {
-    if (newUnitText && newUnitText.trim()) {
-      const cleanUnit = newUnitText.trim().toLowerCase()
-      updateExerciseUnit(exercise.id, cleanUnit)
-      setExerciseUnit(routineExId, cleanUnit)
-      addGlobalCustomUnit(cleanUnit) 
-    }
-    setIsCreatingUnit(false); setNewUnitText('')
-  }
-
-  const handleCheckIn = () => {
-    addSet(exercise.id, weight, reps, {
-      routine_exercise_id: workoutEx.meta?.routine_exercise_id,
-      superset_id: workoutEx.meta?.superset_id,
-      set_type: 'normal',
-      pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out',
-      unit: currentUnit
-    })
-    setIsCompleted(true)
-    if (isLastInSuperset) completeSet(resolvedConfig.rest_time_seconds)
-    setTimeout(() => setIsCompleted(false), 2000)
-  }
+  const handleUnitChange = (newUnit: string) => { if (newUnit === 'NEW') { setIsCreatingUnit(true); return } setWeight(convertWeight(weight, currentUnit, newUnit, equivalencies)); updateExerciseUnit(exercise.id, newUnit); setExerciseUnit(routineExId, newUnit); }
+  const handleSaveNewUnit = () => { if (newUnitText && newUnitText.trim()) { const cleanUnit = newUnitText.trim().toLowerCase(); updateExerciseUnit(exercise.id, cleanUnit); setExerciseUnit(routineExId, cleanUnit); addGlobalCustomUnit(cleanUnit) } setIsCreatingUnit(false); setNewUnitText('') }
+  const handleCheckIn = () => { addSet(exercise.id, weight, reps, { routine_exercise_id: workoutEx.meta?.routine_exercise_id, superset_id: workoutEx.meta?.superset_id, set_type: 'normal', pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out', unit: currentUnit }); setIsCompleted(true); if (isLastInSuperset) completeSet(resolvedConfig.rest_time_seconds); setTimeout(() => setIsCompleted(false), 2000) }
 
   const handleSwapSelection = async (candidate: Exercise) => {
     const isRoutine = !!activeSession?.routine_id
@@ -254,18 +174,11 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
   const routineAltsIds = resolvedConfig.routine_alternatives || []
   const routineAlts = routineAltsIds.map((id: string) => allExercises.find((e: Exercise) => e.id === id)).filter(Boolean)
-  
-  const smartSwaps = learnedSwaps.get(routineExId) 
-    ? Array.from(learnedSwaps.get(routineExId) as Set<string>)
-      .map(id => allExercises.find((e: Exercise) => e.id === id))
-      .filter((c): c is Exercise => c !== undefined && !routineAlts.find((r: any) => r.id === c.id)) 
-    : []
-  
+  const smartSwaps = learnedSwaps.get(routineExId) ? Array.from(learnedSwaps.get(routineExId) as Set<string>).map(id => allExercises.find((e: Exercise) => e.id === id)).filter((c): c is Exercise => c !== undefined && !routineAlts.find((r: any) => r.id === c.id)) : []
   const genericSwaps = swapCandidates.filter((c: Exercise) => !routineAlts.find((r: any) => r.id === c.id) && !smartSwaps.find((s: any) => s.id === c.id))
 
   return (
     <div className={`bg-zinc-900 border rounded-2xl p-4 sm:p-5 mb-4 relative transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'} ${workoutEx.meta?.superset_id ? 'border-l-4 border-l-blue-500' : ''}`}>
-      
       <div className="absolute top-4 right-4 z-10">
         <button onClick={() => setShowMenu(!showMenu)} className="p-2 text-zinc-500 hover:text-zinc-300 bg-zinc-950 rounded-xl"><MoreVertical size={18}/></button>
         {showMenu && (
@@ -306,17 +219,11 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
       <div className="mb-5 relative">
         <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />
-        <textarea 
-          value={currentNote} 
-          onChange={(e) => setRoutineNote(routineExId, e.target.value)} 
-          placeholder="Notas para el futuro..." 
-          className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 pr-3 pl-10 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-12 focus:h-24 transition-all" 
-        />
+        <textarea value={currentNote} onChange={(e) => setRoutineNote(routineExId, e.target.value)} placeholder="Notas para el futuro..." className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 pr-3 pl-10 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-12 focus:h-24 transition-all" />
       </div>
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {/* ---> AQUÍ LE PASAMOS enableRir PARA QUE ENCIENDA LA CAJITA <--- */}
           {sets.map((set: any, idx: number) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} isExtra={idx >= targetSets} currentUnit={currentUnit} useRir={enableRir || resolvedConfig.use_rir}/>)}
         </div>
       )}
@@ -341,7 +248,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
         <SmartStepper label={`Peso (${currentUnit})`} value={weight} step={resolvedConfig.stepper_increment} unit={currentUnit} onChange={setWeight} />
         <SmartStepper label={`Reps`} value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
-      
       {(currentUnit === 'kg' || currentUnit === 'lbs') && <PlateMath weight={weight} />}
       
       <div className="mt-4 flex gap-2">
@@ -492,12 +398,18 @@ export default function Workout() {
         sessionOptions: { routine_id: activeSession.routine_id, routine_day_id: activeSession.routine_day_id, disable_prs: activeSession.disable_prs, config: activeSession.config },
       })
     },
-    onSuccess: async () => { clearSession(); await queryClient.invalidateQueries({ queryKey: ['workout-history'] }); navigate('/') },
+    onSuccess: async () => { 
+      // 1. Navegamos primero
+      navigate('/') 
+      // 2. Limpiamos la sesión después para no romper los hooks de esta pantalla
+      clearSession(); 
+      await queryClient.invalidateQueries({ queryKey: ['workout-history'] }); 
+    },
     onError: (error: any) => alert(`Error al guardar: ${error.message}`),
   })
 
-  if (!activeSession) return <Navigate to="/exercises" replace />
-
+  // ---- LA MAGIA DE LA PANTALLA BLANCA ----
+  // Movemos todos los Hooks ARRIBA del `return`
   const groups = useMemo(() => {
     const result: WorkoutExercise[][] = [];
     let current: WorkoutExercise[] = [];
@@ -521,24 +433,34 @@ export default function Workout() {
     reorderExercises(newGroups.flat());
   }
 
+  // Y ahora sí, si no hay sesión, abortamos renderizado
+  if (!activeSession) return <Navigate to="/exercises" replace />
+
   return (
     <div className="p-3 sm:p-4 relative min-h-[80vh] pb-40 max-w-2xl mx-auto">
-      <div className="flex justify-between items-center mb-6 bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg sticky top-2 z-40">
-        <div className="flex-1 min-w-0 pr-4">
-          <h1 className="text-xl font-bold text-zinc-100 truncate">Entrenamiento</h1>
-          {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
+      
+      {/* ---> LA BARRA FLOTANTE CON EL RELOJ DE DESCANSO DENTRO <--- */}
+      <div className="flex flex-col mb-6 bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg sticky top-2 z-40 transition-all duration-300">
+        <div className="flex justify-between items-center">
+          <div className="flex-1 min-w-0 pr-4">
+            <h1 className="text-xl font-bold text-zinc-100 truncate">Entrenamiento</h1>
+            {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
+          </div>
+          <div className="relative">
+            <button onClick={() => setShowTimeEditor(!showTimeEditor)} className="flex items-center gap-2 text-zinc-400 font-mono font-bold bg-zinc-950 px-3 py-2 rounded-xl border border-zinc-800 active:scale-95 transition-transform">
+              <Timer size={16} /> {formatTime(elapsed)}
+            </button>
+            {showTimeEditor && (
+              <div className="absolute top-full right-0 mt-2 bg-zinc-800 border border-zinc-700 p-2 rounded-xl shadow-2xl flex flex-col gap-2 w-32 z-50">
+                <button onClick={() => { adjustSessionStartTime(-5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">+ 5 mins</button>
+                <button onClick={() => { adjustSessionStartTime(5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">- 5 mins</button>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="relative">
-          <button onClick={() => setShowTimeEditor(!showTimeEditor)} className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 active:scale-95 transition-transform">
-            <Timer size={18} /> {formatTime(elapsed)}
-          </button>
-          {showTimeEditor && (
-            <div className="absolute top-full right-0 mt-2 bg-zinc-800 border border-zinc-700 p-2 rounded-xl shadow-2xl flex flex-col gap-2 w-32 z-50">
-              <button onClick={() => { adjustSessionStartTime(-5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">+ 5 mins</button>
-              <button onClick={() => { adjustSessionStartTime(5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">- 5 mins</button>
-            </div>
-          )}
-        </div>
+        
+        {/* Aquí vive el reloj de descanso ahora */}
+        <RestTimer />
       </div>
 
       {workoutExercises.length === 0 ? (
@@ -581,7 +503,6 @@ export default function Workout() {
         <button onClick={() => finishWorkoutMutation.mutate()} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(16,185,129,0.2)]">{finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}</button>
         <button onClick={() => { if(window.confirm('¿Abandonar? Se perderán las series de hoy.')) { clearSession(); navigate('/') } }} className="w-full text-red-500 font-bold p-4 rounded-xl active:scale-95 transition-transform bg-transparent">Abandonar Entrenamiento</button>
       </div>
-      <RestTimer />
     </div>
   )
 }
