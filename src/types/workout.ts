@@ -16,10 +16,10 @@ export interface LoggedSet {
   weight: number
   reps: number
   unit?: string 
-  rir?: number // <--- NUEVO: Reps in Reserve
+  rir?: number 
   routine_exercise_id?: string
   superset_id?: string | null
-  set_type?: 'normal' | 'drop_set' | 'warm_up' // <--- NUEVO: Warm Up
+  set_type?: 'normal' | 'drop_set' | 'warm_up' 
   pr_opt_out?: boolean
   pr_fixed_weight?: number | null
 }
@@ -35,6 +35,7 @@ export interface ExerciseConfig {
   show_images?: boolean
   show_google_search?: boolean
   sets_config?: { reps: number; weight: number }[]
+  routine_alternatives?: string[] // <--- NUEVO: Reemplazos favoritos para esta rutina
 }
 
 export interface WorkoutSessionOptions {
@@ -69,8 +70,8 @@ export interface PersistedWorkoutSet {
   weight: number
   reps: number
   unit?: string 
-  rir?: number // <--- NUEVO
-  set_type?: 'normal' | 'drop_set' | 'warm_up' // <--- NUEVO
+  rir?: number 
+  set_type?: 'normal' | 'drop_set' | 'warm_up' 
   is_completed: boolean
 }
 
@@ -78,7 +79,7 @@ export interface WorkoutSessionWithSets {
   id: string
   start_time: string
   end_time?: string | null
-  notes?: string | null // <--- NUEVO
+  notes?: string | null 
   routine_id?: string | null
   routine_day_id?: string | null
   workout_sets: PersistedWorkoutSet[] | null

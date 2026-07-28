@@ -14,9 +14,10 @@ Carpeta: [Nombre de la Carpeta o Categoría opcional]
 Notas: [Cualquier indicación general]
 
 Día: [Nombre del Día]
-[Nombre Ejercicio] | [Series]x[Reps]
-[Nombre Ejercicio] | [Series]x[Reps] @ [Peso opcional]
+[Nombre Ejercicio] / [Alternativa 1] / [Alternativa 2] | [Series]x[Reps] @ [Peso opcional]
 [Nombre Ejercicio] | [Reps]@[Peso], [Reps]@[Peso]
+
+(Nota: Las alternativas usando " / " y el peso inicial usando " @ " son opcionales, puedes incluirlos o no dependiendo de la rutina).
 
 Ejemplo de Rutina:
 Rutina: Fuerza Total
@@ -24,9 +25,9 @@ Carpeta: Powerlifting
 Notas: Descansar 3 min entre series pesadas.
 
 Día: Lunes - Pecho
-Press de Banca | 4x5 @ 80
+Press de Banca / Press con Mancuernas | 4x5 @ 80
 Fondos | 3x10
-Aperturas | 12@10, 10@12, 8@15
+Aperturas en Polea / Pec Deck | 12@10, 10@12.5, 8@15
 
 Para crear EJERCICIOS sueltos para mi catálogo, usa este formato (separa cada uno con doble salto de línea):
 Nombre: [Nombre]
@@ -39,8 +40,9 @@ Nombre: Curl de Bíceps
 Grupo: Brazos
 Imagen: https://ejemplo.com/curl.gif
 Descripcion: Mantén los codos pegados al torso.`;
+  
   navigator.clipboard.writeText(prompt);
-  alert('¡Prompt copiado al portapapeles! Pégalo en tu IA favorita (ChatGPT, Claude, etc) para generar contenido importable.');
+  alert('¡Prompt copiado al portapapeles! Pégalo en tu IA favorita (ChatGPT, Claude, Gemini) para generar rutinas que puedas importar al instante.');
 }
 
 export default function Settings() {
@@ -104,7 +106,7 @@ export default function Settings() {
           Asistente IA
         </h2>
         <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-          Copia este "Prompt" y envíaselo a tu Inteligencia Artificial favorita (ChatGPT, Claude, etc). Le enseñará a hablar el mismo idioma que esta aplicación para que te diseñe rutinas que puedas importar con un click.
+          Copia este "Prompt" y envíaselo a tu Inteligencia Artificial favorita (ChatGPT, Claude, Gemini). Le enseñará a hablar el mismo idioma que esta aplicación para que te diseñe rutinas que puedas importar con un click.
         </p>
         <button 
           onClick={COPY_AI_PROMPT}

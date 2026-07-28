@@ -5,13 +5,20 @@ import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
 
+interface ParsedAlternative {
+  originalName: string
+  exercise_id: string
+  is_new?: boolean
+}
+
 interface ParsedExercise {
   exercise_id: string
   originalName: string
   target_sets: number
   target_reps: number
   is_new?: boolean
-  config: { sets_config: { reps: number; weight: number }[] }
+  alternatives?: ParsedAlternative[] // <--- NUEVO
+  config: { sets_config: { reps: number; weight: number }[], routine_alternatives?: string[] }
 }
 
 interface ParsedDay {
@@ -68,8 +75,13 @@ export default function RoutineBuilder() {
           continue 
         }
 
-        const [exName, setsStr] = t.split('|').map(s => s.trim())
+        const [exStr, setsStr] = t.split('|').map(s => s.trim())
         
+        // ---> NUEVO: Detección de Alternativas usando ' / ' <---
+        const exNames = exStr.split(/\s+\/\s+/).map(s => s.trim())
+        const mainExName = exNames[0]
+        const altNames = exNames.slice(1)
+
         let target_sets = 0;
         let sets_config: { reps: number; weight: number }[] = [];
 
@@ -90,28 +102,29 @@ export default function RoutineBuilder() {
             });
         }
 
-        const ex = allExercises.find(e => normalize(e.name) === normalize(exName))
-        
-        if (!ex) {
-           // ---> MAGIA: En lugar de dar error, lo marcamos para crearlo <---
-           result.newExercisesCount++
-           currentDay.exercises.push({
-              exercise_id: 'NEW', 
-              originalName: exName,
-              target_sets,
-              target_reps: sets_config[0]?.reps || 10,
-              is_new: true,
-              config: { sets_config }
-           })
-        } else {
-           currentDay.exercises.push({
-              exercise_id: ex.id,
-              originalName: ex.name,
-              target_sets,
-              target_reps: sets_config[0]?.reps || 10,
-              config: { sets_config }
-           })
-        }
+        // Resolución del Principal
+        const ex = allExercises.find(e => normalize(e.name) === normalize(mainExName))
+        let is_new = false;
+        let exercise_id = ex?.id || 'NEW';
+        if (!ex) { is_new = true; result.newExercisesCount++; }
+
+        // Resolución de Alternativas
+        const alternatives = altNames.map(altName => {
+           const altEx = allExercises.find(e => normalize(e.name) === normalize(altName))
+           let alt_is_new = false;
+           if (!altEx) { alt_is_new = true; result.newExercisesCount++; }
+           return { originalName: altName, exercise_id: altEx?.id || 'NEW', is_new: alt_is_new }
+        })
+
+        currentDay.exercises.push({
+           exercise_id,
+           originalName: mainExName,
+           target_sets,
+           target_reps: sets_config[0]?.reps || 10,
+           is_new,
+           alternatives,
+           config: { sets_config }
+        })
       }
     }
 
@@ -123,22 +136,33 @@ export default function RoutineBuilder() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // 1. Si hay ejercicios nuevos, los creamos en Supabase primero
       const daysToSave = [...parsedResult.days]
       for (const day of daysToSave) {
          for (const ex of day.exercises) {
+            // Creamos el principal si no existe
             if (ex.is_new) {
                const createdEx = await createExercise({ name: ex.originalName, muscle_group: 'Otro', is_public: false })
                ex.exercise_id = createdEx.id
             }
+            // Creamos las alternativas si no existen y armamos el config
+            if (ex.alternatives && ex.alternatives.length > 0) {
+               const altIds = []
+               for (const alt of ex.alternatives) {
+                  if (alt.is_new) {
+                     const createdAlt = await createExercise({ name: alt.originalName, muscle_group: 'Otro', is_public: false })
+                     alt.exercise_id = createdAlt.id
+                  }
+                  altIds.push(alt.exercise_id)
+               }
+               ex.config.routine_alternatives = altIds
+            }
          }
       }
-      // 2. Creamos la rutina usando los IDs nuevos
       return createStructuredRoutine(parsedResult.name, parsedResult.folder, parsedResult.notes, daysToSave)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
-      queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] }) // Refrescamos catálogo por si se añadieron
+      queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
       navigate('/routines')
     },
     onError: (error: any) => alert(`Error al guardar: ${error.message}`)
@@ -183,7 +207,7 @@ export default function RoutineBuilder() {
       <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
         <div className="flex items-start justify-between mb-3">
           <p className="text-xs text-zinc-400 leading-relaxed pr-4">
-            Pega aquí tu rutina. Usa "x" o "*" y añade "@ peso" al final si quieres indicar un peso inicial (Ej: 4x10 @ 60).
+            Pega aquí tu rutina. Usa "x" o "*" y añade "@ peso" al final si quieres. Usa " / " para añadir reemplazos.
           </p>
           <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1.5 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform flex-shrink-0">
             <Bot size={14} /> Prompt IA
@@ -193,7 +217,7 @@ export default function RoutineBuilder() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-48 text-sm font-mono resize-none leading-relaxed"
-          placeholder={`Rutina: Fuerza y Volumen\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca | 4x8 @ 60\nAperturas | 12@10, 10@12.5, 8@15`}
+          placeholder={`Rutina: Fuerza y Volumen\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca / Mancuernas | 4x8 @ 60\nAperturas | 12@10, 10@12.5, 8@15`}
         />
       </div>
 
@@ -215,7 +239,15 @@ export default function RoutineBuilder() {
                           <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
                           {ex.is_new && <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO</span>}
                         </div>
-                        <p className="text-[11px] text-zinc-500 mt-1 uppercase tracking-wider font-medium">
+                        
+                        {/* ---> NUEVO: Renderizado de alternativas detectadas <--- */}
+                        {ex.alternatives && ex.alternatives.length > 0 && (
+                           <p className="text-[10px] text-yellow-500/80 font-bold mt-1">
+                             <span className="text-yellow-600">Alts:</span> {ex.alternatives.map(a => a.originalName).join(', ')}
+                           </p>
+                        )}
+
+                        <p className="text-[11px] text-zinc-500 mt-1.5 uppercase tracking-wider font-medium">
                           {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => s.weight > 0 ? `${s.reps}@${s.weight}` : `${s.reps}`).join(', ')}
                         </p>
                       </div>

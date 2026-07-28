@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchRoutineById, fetchExercises, updateRoutine, deleteRoutine } from '../lib/queries'
-import { Trash2, Plus, ArrowLeft, Save } from 'lucide-react'
+import { Trash2, Plus, ArrowLeft, Save, X } from 'lucide-react'
 
 export default function RoutineEditor() {
   const { id } = useParams<{ id: string }>()
@@ -39,9 +39,8 @@ export default function RoutineEditor() {
           exercise_id: ex.exercise_id,
           target_sets: ex.target_sets,
           target_reps: ex.target_reps,
-          // Extraemos el peso del config (si lo tiene)
           weight: ex.config?.sets_config?.[0]?.weight || '',
-          config: ex.config // Guardamos la config original por si tiene otras cosas
+          config: ex.config || {}
         })),
       }))
       setDays(mappedDays)
@@ -50,13 +49,12 @@ export default function RoutineEditor() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      // Formateamos los días para inyectar el peso en el config
       const formattedDays = days.map(day => ({
         ...day,
         exercises: day.exercises.map((ex: any) => ({
           ...ex,
           config: {
-            ...(ex.config || {}),
+            ...ex.config,
             sets_config: Array(ex.target_sets).fill(null).map(() => ({
               reps: ex.target_reps,
               weight: parseFloat(ex.weight) || 0
@@ -82,57 +80,59 @@ export default function RoutineEditor() {
     onError: (err: any) => alert(`Error al eliminar: ${err.message}`)
   })
 
-  const addDay = () => {
-    setDays([...days, { name: `Día ${days.length + 1}`, day_order: days.length + 1, exercises: [] }])
-  }
-
+  const addDay = () => setDays([...days, { name: `Día ${days.length + 1}`, day_order: days.length + 1, exercises: [] }])
+  
   const addExercise = (dayIndex: number) => {
     if (allExercises.length === 0) return
     const newDays = [...days]
-    newDays[dayIndex].exercises.push({
-      exercise_id: allExercises[0].id,
-      target_sets: 3,
-      target_reps: 10,
-      weight: '',
-      config: {}
-    })
+    newDays[dayIndex].exercises.push({ exercise_id: allExercises[0].id, target_sets: 3, target_reps: 10, weight: '', config: {} })
     setDays(newDays)
   }
 
   const updateExercise = (dayIndex: number, exIndex: number, field: string, value: string | number) => {
-    const newDays = [...days]
-    newDays[dayIndex].exercises[exIndex][field] = value
-    setDays(newDays)
+    const newDays = [...days]; newDays[dayIndex].exercises[exIndex][field] = value; setDays(newDays)
   }
 
   const removeExercise = (dayIndex: number, exIndex: number) => {
-    const newDays = [...days]
-    newDays[dayIndex].exercises.splice(exIndex, 1)
-    setDays(newDays)
+    const newDays = [...days]; newDays[dayIndex].exercises.splice(exIndex, 1); setDays(newDays)
   }
 
   const removeDay = (dayIndex: number) => {
+    const newDays = [...days]; newDays.splice(dayIndex, 1); setDays(newDays)
+  }
+
+  // ---> NUEVO: Lógica de la UI para Alternativas <---
+  const addAlternative = (dIdx: number, eIdx: number) => {
     const newDays = [...days]
-    newDays.splice(dayIndex, 1)
+    if (!newDays[dIdx].exercises[eIdx].config) newDays[dIdx].exercises[eIdx].config = {}
+    if (!newDays[dIdx].exercises[eIdx].config.routine_alternatives) newDays[dIdx].exercises[eIdx].config.routine_alternatives = []
+    newDays[dIdx].exercises[eIdx].config.routine_alternatives.push(allExercises[0]?.id || '')
+    setDays(newDays)
+  }
+
+  const updateAlternative = (dIdx: number, eIdx: number, aIdx: number, val: string) => {
+    const newDays = [...days]
+    newDays[dIdx].exercises[eIdx].config.routine_alternatives[aIdx] = val
+    setDays(newDays)
+  }
+
+  const removeAlternative = (dIdx: number, eIdx: number, aIdx: number) => {
+    const newDays = [...days]
+    newDays[dIdx].exercises[eIdx].config.routine_alternatives.splice(aIdx, 1)
     setDays(newDays)
   }
 
   if (isLoading) return <div className="p-6 text-zinc-500">Cargando editor...</div>
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <button onClick={() => navigate('/routines')} className="text-zinc-400 p-2 bg-zinc-900 rounded-xl">
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold">Editar Rutina</h1>
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="bg-emerald-500 text-zinc-950 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50"
-        >
-          <Save size={20} />
-          {saveMutation.isPending ? '...' : 'Guardar'}
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-500 text-zinc-950 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50">
+          <Save size={20} /> {saveMutation.isPending ? '...' : 'Guardar'}
         </button>
       </div>
 
@@ -178,6 +178,27 @@ export default function RoutineEditor() {
                     <input type="number" step="any" placeholder="-" value={ex.weight} onChange={(e) => updateExercise(dIdx, eIdx, 'weight', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm text-emerald-400 font-bold" />
                   </div>
                 </div>
+
+                {/* ---> NUEVO: UI DE REEMPLAZOS FAVORITOS <--- */}
+                <div className="mt-1 border-t border-zinc-800/50 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] text-yellow-500/80 uppercase font-bold tracking-wider">Reemplazos Fijos (Favoritos)</label>
+                    <button onClick={() => addAlternative(dIdx, eIdx)} className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider bg-yellow-500/10 px-2 py-1 rounded">+ Añadir</button>
+                  </div>
+                  {ex.config?.routine_alternatives?.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {ex.config.routine_alternatives.map((altId: string, aIdx: number) => (
+                        <div key={aIdx} className="flex items-center gap-2">
+                          <select value={altId} onChange={(e) => updateAlternative(dIdx, eIdx, aIdx, e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-800 text-xs font-medium rounded-lg p-2 outline-none text-zinc-300">
+                            {allExercises.map((catEx: any) => <option key={catEx.id} value={catEx.id}>{catEx.name}</option>)}
+                          </select>
+                          <button onClick={() => removeAlternative(dIdx, eIdx, aIdx)} className="text-zinc-500 hover:text-red-500 p-1"><X size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
             ))}
           </div>

@@ -11,42 +11,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown, Zap } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown, Zap, Star } from 'lucide-react'
 
-// --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
   if (fromUnit === toUnit) return value;
   if (fromUnit === 'bodyweight' || toUnit === 'bodyweight') return 0;
-
   const graph: Record<string, { to: string, factor: number }[]> = {};
   const addEdge = (u: string, v: string, f: number) => {
     if (!graph[u]) graph[u] = [];
     graph[u].push({ to: v, factor: f });
   };
-  addEdge('kg', 'lbs', 2.20462262);
-  addEdge('lbs', 'kg', 0.45359237);
-  equivalencies.forEach((eq: any) => {
-    addEdge(eq.from, eq.to, eq.multiplier);
-    addEdge(eq.to, eq.from, 1 / eq.multiplier);
-  });
-
+  addEdge('kg', 'lbs', 2.20462262); addEdge('lbs', 'kg', 0.45359237);
+  equivalencies.forEach((eq: any) => { addEdge(eq.from, eq.to, eq.multiplier); addEdge(eq.to, eq.from, 1 / eq.multiplier); });
   const queue: { unit: string, val: number }[] = [{ unit: fromUnit, val: value }];
   const visited = new Set<string>([fromUnit]);
-
   while (queue.length > 0) {
     const { unit, val } = queue.shift()!;
     if (unit === toUnit) return Math.round(val * 4) / 4;
     for (const neighbor of (graph[unit] || [])) {
-      if (!visited.has(neighbor.to)) {
-        visited.add(neighbor.to);
-        queue.push({ unit: neighbor.to, val: val * neighbor.factor });
-      }
+      if (!visited.has(neighbor.to)) { visited.add(neighbor.to); queue.push({ unit: neighbor.to, val: val * neighbor.factor }); }
     }
   }
   return Math.round(value * 4) / 4;
 }
 
-// --- COMPONENTE FILA DE SERIE ---
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, currentUnit, useRir }: any) {
   const [weight, setWeight] = useState(set.weight)
   const [reps, setReps] = useState(set.reps)
@@ -54,25 +42,10 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
   const [isEdited, setIsEdited] = useState(false)
   const [setType, setSetType] = useState<'normal' | 'warm_up' | 'drop_set'>(set.set_type || 'normal')
 
-  useEffect(() => {
-    setWeight(set.weight)
-    setReps(set.reps)
-    setRir(set.rir ?? '')
-    setSetType(set.set_type || 'normal')
-    setIsEdited(false)
-  }, [set])
+  useEffect(() => { setWeight(set.weight); setReps(set.reps); setRir(set.rir ?? ''); setSetType(set.set_type || 'normal'); setIsEdited(false) }, [set])
 
-  const handleSave = () => {
-    updateSet(exerciseId, index, { weight, reps, rir: rir !== '' ? Number(rir) : undefined, set_type: setType })
-    setIsEdited(false)
-  }
-
-  const toggleSetType = () => {
-    const next = setType === 'normal' ? 'warm_up' : setType === 'warm_up' ? 'drop_set' : 'normal'
-    setSetType(next)
-    setIsEdited(true)
-  }
-
+  const handleSave = () => { updateSet(exerciseId, index, { weight, reps, rir: rir !== '' ? Number(rir) : undefined, set_type: setType }); setIsEdited(false) }
+  const toggleSetType = () => { setSetType(setType === 'normal' ? 'warm_up' : setType === 'warm_up' ? 'drop_set' : 'normal'); setIsEdited(true) }
   const estimated1RM = (weight > 0 && reps > 1 && setType !== 'warm_up') ? Math.round(weight * (1 + reps / 30)) : weight
 
   return (
@@ -111,26 +84,19 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
   )
 }
 
-// --- MODAL DEL HISTORIAL ---
 const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () => void }) => {
   const { data: history, isLoading } = useQuery({ queryKey: ['exercise-history', exercise.id], queryFn: () => fetchExerciseHistory(exercise.id) })
-
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center animate-in fade-in duration-200">
       <div className="bg-zinc-900 w-full sm:w-[400px] sm:rounded-3xl rounded-t-3xl p-5 max-h-[80vh] flex flex-col relative animate-in slide-in-from-bottom-10">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-zinc-800 rounded-full text-zinc-400"><X size={20}/></button>
-        <div className="flex items-center gap-3 mb-6 pr-8">
-          <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500"><History size={24}/></div>
-          <h2 className="text-xl font-bold text-zinc-100 truncate">Historial</h2>
-        </div>
+        <div className="flex items-center gap-3 mb-6 pr-8"><div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500"><History size={24}/></div><h2 className="text-xl font-bold text-zinc-100 truncate">Historial</h2></div>
         <div className="overflow-y-auto flex-1 pr-2 space-y-4 pb-10">
           {isLoading ? <p className="text-zinc-500 text-center py-4">Buscando...</p> : 
            history?.length === 0 ? <p className="text-zinc-500 text-center py-4">No hay historial para este ejercicio.</p> :
            history?.map((session: any) => (
              <div key={session.id} className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800/50">
-               <p className="text-xs font-bold text-emerald-500 mb-3 border-b border-zinc-800 pb-2">
-                 {new Date(session.start_time).toLocaleDateString()} a las {new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-               </p>
+               <p className="text-xs font-bold text-emerald-500 mb-3 border-b border-zinc-800 pb-2">{new Date(session.start_time).toLocaleDateString()} a las {new Date(session.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                <div className="space-y-1">
                  {session.workout_sets.map((s: any, idx: number) => (
                    <div key={s.id} className="flex items-center gap-2 text-sm text-zinc-300">
@@ -150,96 +116,44 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
   )
 }
 
-// --- TRACKER INDIVIDUAL DEL EJERCICIO ---
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
   const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
-
-  const [showMenu, setShowMenu] = useState(false)
-  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [showMenu, setShowMenu] = useState(false); const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const exercise = useMemo(() => {
     const rawEx = workoutEx.exercise
     if (rawEx && typeof rawEx === 'object' && 'name' in rawEx && rawEx.name && rawEx.name !== 'Ejercicio' && rawEx.name !== 'Ejercicio sin nombre') return rawEx as Exercise
     const targetId = (rawEx as any)?.exercise_id || (workoutEx as any).exercise_id || (rawEx as any)?.id || (workoutEx as any).id
-    if (targetId) {
-      const catalogMatch = allExercises.find((e: Exercise) => e.id === targetId)
-      if (catalogMatch) return catalogMatch
-    }
+    if (targetId) { const catalogMatch = allExercises.find((e: Exercise) => e.id === targetId); if (catalogMatch) return catalogMatch }
     return { id: targetId || '', name: (rawEx as any)?.name || 'Ejercicio sin nombre', muscle_group: '', image_url: '', description: '', config: null } as Exercise
   }, [workoutEx, allExercises])
 
   const sets = workoutEx.sets || []
   const resolvedConfig = resolveExerciseConfig(null, null, workoutEx.meta?.config ?? exercise.config ?? null)
-  
   const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
   const currentUnit = workoutEx.meta?.active_unit || exerciseUnits[routineExId] || resolvedConfig.weight_unit || 'kg'
-  
   const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...(resolvedConfig.custom_units || []), ...globalCustomUnits]))
-  const [isCreatingUnit, setIsCreatingUnit] = useState(false)
-  const [newUnitText, setNewUnitText] = useState('')
-
+  const [isCreatingUnit, setIsCreatingUnit] = useState(false); const [newUnitText, setNewUnitText] = useState('')
   const targetSets = resolvedConfig.sets_config?.length > 0 ? resolvedConfig.sets_config.length : ((workoutEx.meta as any)?.target_sets || 3);
-  const currentSetIndex = sets.length
-  const isCompletedVisual = currentSetIndex >= targetSets
+  const currentSetIndex = sets.length; const isCompletedVisual = currentSetIndex >= targetSets
+  const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20); const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
+  const [isCompleted, setIsCompleted] = useState(false); const [showSwapList, setShowSwapList] = useState(false); const [showImage, setShowImage] = useState(false)
 
-  const [weight, setWeight] = useState(workoutEx.meta?.default_weight ?? 20)
-  const [reps, setReps] = useState(workoutEx.meta?.default_reps ?? 8)
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [showSwapList, setShowSwapList] = useState(false)
-  const [showImage, setShowImage] = useState(false)
-
-  const currentNote = routineNotes[routineExId] || ''
-
-  // ---> MAGIA CORREGIDA: BÚSQUEDA CRUZADA DE ID_RUTINA + ID_EJERCICIO <---
   useEffect(() => {
-    // Buscamos específicamente el historial de ESTE ejercicio en ESTE lugar de la rutina
     const smartKey = `${routineExId}-${exercise.id}-set-${currentSetIndex}`
     const rDef = defaultsMap.get(smartKey)
     const pDef = resolvedConfig.sets_config?.[currentSetIndex] || resolvedConfig.sets_config?.[(resolvedConfig.sets_config?.length || 1) - 1]
     const gDef = defaultsMap.get(`global-${exercise.id}`)
-    
-    if (rDef) { 
-      setWeight(rDef.weight); setReps(rDef.reps)
-      if (rDef.unit && rDef.unit !== currentUnit) updateExerciseUnit(exercise.id, rDef.unit)
-    } 
+    if (rDef) { setWeight(rDef.weight); setReps(rDef.reps); if (rDef.unit && rDef.unit !== currentUnit) updateExerciseUnit(exercise.id, rDef.unit) } 
     else if (pDef) { setWeight(pDef.weight); setReps(pDef.reps) } 
-    else if (gDef && currentSetIndex === 0) { 
-      setWeight(gDef.weight); setReps(gDef.reps)
-      if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit)
-    }
+    else if (gDef && currentSetIndex === 0) { setWeight(gDef.weight); setReps(gDef.reps); if (gDef.unit && gDef.unit !== currentUnit) updateExerciseUnit(exercise.id, gDef.unit) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSetIndex, exercise.id])
 
-  const handleUnitChange = (newUnit: string) => {
-    if (newUnit === 'NEW') { setIsCreatingUnit(true); return }
-    setWeight(convertWeight(weight, currentUnit, newUnit, equivalencies));
-    updateExerciseUnit(exercise.id, newUnit);
-    setExerciseUnit(routineExId, newUnit); 
-  }
-
-  const handleSaveNewUnit = () => {
-    if (newUnitText && newUnitText.trim()) {
-      const cleanUnit = newUnitText.trim().toLowerCase()
-      updateExerciseUnit(exercise.id, cleanUnit)
-      setExerciseUnit(routineExId, cleanUnit)
-      addGlobalCustomUnit(cleanUnit) 
-    }
-    setIsCreatingUnit(false); setNewUnitText('')
-  }
-
-  const handleCheckIn = () => {
-    addSet(exercise.id, weight, reps, {
-      routine_exercise_id: workoutEx.meta?.routine_exercise_id,
-      superset_id: workoutEx.meta?.superset_id,
-      set_type: 'normal',
-      pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out',
-      unit: currentUnit
-    })
-    setIsCompleted(true)
-    if (isLastInSuperset) completeSet(resolvedConfig.rest_time_seconds)
-    setTimeout(() => setIsCompleted(false), 2000)
-  }
+  const handleUnitChange = (newUnit: string) => { if (newUnit === 'NEW') { setIsCreatingUnit(true); return } setWeight(convertWeight(weight, currentUnit, newUnit, equivalencies)); updateExerciseUnit(exercise.id, newUnit); setExerciseUnit(routineExId, newUnit); }
+  const handleSaveNewUnit = () => { if (newUnitText && newUnitText.trim()) { const cleanUnit = newUnitText.trim().toLowerCase(); updateExerciseUnit(exercise.id, cleanUnit); setExerciseUnit(routineExId, cleanUnit); addGlobalCustomUnit(cleanUnit) } setIsCreatingUnit(false); setNewUnitText('') }
+  const handleCheckIn = () => { addSet(exercise.id, weight, reps, { routine_exercise_id: workoutEx.meta?.routine_exercise_id, superset_id: workoutEx.meta?.superset_id, set_type: 'normal', pr_opt_out: workoutEx.meta?.pr_mode === 'opt_out', unit: currentUnit }); setIsCompleted(true); if (isLastInSuperset) completeSet(resolvedConfig.rest_time_seconds); setTimeout(() => setIsCompleted(false), 2000) }
 
   const handleSwapSelection = async (candidate: Exercise) => {
     const isRoutine = !!activeSession?.routine_id
@@ -252,9 +166,11 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
     setShowSwapList(false)
   }
 
-  // Identificamos si hay reemplazos inteligentes que la app aprendió
-  const smartSwaps = learnedSwaps.get(routineExId) ? Array.from(learnedSwaps.get(routineExId) as Set<string>).map(id => allExercises.find((e: Exercise) => e.id === id)).filter(Boolean) : []
-  const genericSwaps = swapCandidates.filter((c: Exercise) => !smartSwaps.find((s: any) => s.id === c.id))
+  // Lógica de Renderizado del Swap List
+  const routineAltsIds = resolvedConfig.routine_alternatives || []
+  const routineAlts = routineAltsIds.map((id: string) => allExercises.find((e: Exercise) => e.id === id)).filter(Boolean)
+  const smartSwaps = learnedSwaps.get(routineExId) ? Array.from(learnedSwaps.get(routineExId) as Set<string>).map(id => allExercises.find((e: Exercise) => e.id === id)).filter(c => c && !routineAlts.find((r: any) => r.id === c.id)) : []
+  const genericSwaps = swapCandidates.filter((c: Exercise) => !routineAlts.find((r: any) => r.id === c.id) && !smartSwaps.find((s: any) => s.id === c.id))
 
   return (
     <div className={`bg-zinc-900 border rounded-2xl p-4 sm:p-5 mb-4 relative transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'} ${workoutEx.meta?.superset_id ? 'border-l-4 border-l-blue-500' : ''}`}>
@@ -298,7 +214,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
       <div className="mb-5 relative">
         <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />
-        <textarea value={currentNote} onChange={(e) => setRoutineNote(routineExId, e.target.value)} placeholder="Notas para el futuro..." className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 pr-3 pl-10 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-12 focus:h-24 transition-all" />
+        <textarea value={routineNotes[routineExId] || ''} onChange={(e) => setRoutineNote(routineExId, e.target.value)} placeholder="Notas para el futuro..." className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 pr-3 pl-10 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-12 focus:h-24 transition-all" />
       </div>
 
       {sets.length > 0 && (
@@ -327,7 +243,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
         <SmartStepper label={`Peso (${currentUnit})`} value={weight} step={resolvedConfig.stepper_increment} unit={currentUnit} onChange={setWeight} />
         <SmartStepper label={`Reps`} value={reps} step={1} unit="reps" onChange={setReps} />
       </div>
-      
       {(currentUnit === 'kg' || currentUnit === 'lbs') && <PlateMath weight={weight} />}
       
       <div className="mt-4 flex gap-2">
@@ -342,21 +257,22 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
           <div className="flex flex-wrap gap-2">
             
-            {/* Primero los que aprendió la IA local */}
+            {routineAlts.map((c: any) => (
+              <button key={`routine-alt-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(234,179,8,0.15)]"><Star size={12} fill="currentColor"/> {c.name}</button>
+            ))}
+
             {smartSwaps.map((c: any) => (
               <button key={`smart-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.15)]"><Zap size={12} fill="currentColor"/> {c.name}</button>
             ))}
 
-            {/* Luego los genéricos */}
             {genericSwaps.slice(0, 8).map((c: Exercise) => (
               <button key={c.id} onClick={() => handleSwapSelection(c)} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg">{c.name}</button>
             ))}
 
-            {swapCandidates.length === 0 && smartSwaps.length === 0 && <span className="text-xs text-zinc-500">No hay alternativas claras.</span>}
+            {swapCandidates.length === 0 && smartSwaps.length === 0 && routineAlts.length === 0 && <span className="text-xs text-zinc-500">No hay alternativas claras.</span>}
           </div>
         </div>
       )}
-
       {showHistoryModal && <HistoryModal exercise={exercise} onClose={() => setShowHistoryModal(false)}/>}
     </div>
   )
@@ -364,8 +280,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
 function getSmartDefaults(sessions: WorkoutSessionWithSets[], routineDayId: string | null) {
   const defaults = new Map<string, { weight: number; reps: number; unit?: string }>()
-  
-  // Ahora la clave es compuesta: ID de la rutina + ID del ejercicio
   if (routineDayId) {
     const lastRoutineSession = sessions.find(s => s.routine_day_id === routineDayId)
     if (lastRoutineSession && lastRoutineSession.workout_sets) {
@@ -392,8 +306,6 @@ function getLearnedSwaps(sessions: WorkoutSessionWithSets[]) {
   const learned = new Map<string, Set<string>>()
   sessions.forEach(session => {
     session.workout_sets?.forEach(set => {
-      // Si la serie tiene routine_exercise_id pero el exercise_id NO ES el original, la app aprende que a veces lo cambias por este.
-      // (Para simplificar sin tener el catálogo completo en la query, guardamos todo cruce histórico)
       if (set.routine_exercise_id && set.exercise_id) {
         if (!learned.has(set.routine_exercise_id)) learned.set(set.routine_exercise_id, new Set())
         learned.get(set.routine_exercise_id)!.add(set.exercise_id)
@@ -474,13 +386,11 @@ export default function Workout() {
   const handleMoveGroup = (fromIndex: number, direction: 'up' | 'down') => {
     if (direction === 'up' && fromIndex === 0) return;
     if (direction === 'down' && fromIndex === groups.length - 1) return;
-    
     const newGroups = [...groups];
     const targetIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
     const temp = newGroups[fromIndex];
     newGroups[fromIndex] = newGroups[targetIndex];
     newGroups[targetIndex] = temp;
-    
     reorderExercises(newGroups.flat());
   }
 
@@ -491,7 +401,6 @@ export default function Workout() {
           <h1 className="text-xl font-bold text-zinc-100 truncate">Entrenamiento</h1>
           {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
         </div>
-        
         <div className="relative">
           <button onClick={() => setShowTimeEditor(!showTimeEditor)} className="flex items-center gap-2 text-emerald-500 font-mono font-bold bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20 active:scale-95 transition-transform">
             <Timer size={18} /> {formatTime(elapsed)}
@@ -506,32 +415,19 @@ export default function Workout() {
       </div>
 
       {workoutExercises.length === 0 ? (
-        <div className="text-center text-zinc-500 my-10 bg-zinc-900/50 p-8 rounded-2xl border border-zinc-800 border-dashed">
-          Agrega ejercicios desde el catálogo para comenzar.
-        </div>
+        <div className="text-center text-zinc-500 my-10 bg-zinc-900/50 p-8 rounded-2xl border border-zinc-800 border-dashed">Agrega ejercicios desde el catálogo para comenzar.</div>
       ) : (
         <div className="flex flex-col gap-2">
           {groups.map((group: WorkoutExercise[], gIdx: number) => {
             const isSuperset = group.length > 1;
             return (
               <div key={gIdx} className={`relative flex flex-col gap-2 ${isSuperset ? 'p-1.5 sm:p-2 bg-blue-900/5 border border-blue-500/20 rounded-3xl' : ''}`}>
-                
                 <div className="flex justify-end gap-1 mb-1 pr-2">
                    <button onClick={() => handleMoveGroup(gIdx, 'up')} disabled={gIdx === 0} className="p-1.5 bg-zinc-800 text-zinc-500 rounded-lg disabled:opacity-30 active:scale-95"><ArrowUp size={16}/></button>
                    <button onClick={() => handleMoveGroup(gIdx, 'down')} disabled={gIdx === groups.length - 1} className="p-1.5 bg-zinc-800 text-zinc-500 rounded-lg disabled:opacity-30 active:scale-95"><ArrowDown size={16}/></button>
                 </div>
-
                 {group.map((workoutEx: WorkoutExercise, exIdxInGroup: number) => (
-                  <ExerciseTracker 
-                    key={`${workoutEx.exercise.id}-${gIdx}-${exIdxInGroup}`} 
-                    workoutEx={workoutEx} 
-                    allExercises={allExercises} 
-                    defaultsMap={defaultsMap} 
-                    learnedSwaps={learnedSwaps}
-                    swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} 
-                    onSwapExercise={(targetEx: Exercise) => replaceExercise(workoutEx.exercise.id, targetEx)} 
-                    isLastInSuperset={exIdxInGroup === group.length - 1}
-                  />
+                  <ExerciseTracker key={`${workoutEx.exercise.id}-${gIdx}-${exIdxInGroup}`} workoutEx={workoutEx} allExercises={allExercises} defaultsMap={defaultsMap} learnedSwaps={learnedSwaps} swapCandidates={getSwapCandidates(workoutEx.exercise, allExercises)} onSwapExercise={(targetEx: Exercise) => replaceExercise(workoutEx.exercise.id, targetEx)} isLastInSuperset={exIdxInGroup === group.length - 1}/>
                 ))}
               </div>
             )
@@ -541,12 +437,7 @@ export default function Workout() {
 
       <div className="mt-8 bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
         <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2"><AlignLeft size={16}/> Notas de la Sesión</h3>
-        <textarea 
-          value={sessionNotes} 
-          onChange={(e) => setSessionNotes(e.target.value)} 
-          placeholder="¿Cómo te sentiste hoy? (Sueño, comida, energía...)" 
-          className="w-full bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-20"
-        />
+        <textarea value={sessionNotes} onChange={(e) => setSessionNotes(e.target.value)} placeholder="¿Cómo te sentiste hoy? (Sueño, comida, energía...)" className="w-full bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 text-sm text-zinc-300 outline-none focus:border-emerald-500 resize-none h-20"/>
       </div>
 
       <div className="flex flex-col gap-3 mt-6">
@@ -554,7 +445,6 @@ export default function Workout() {
         <button onClick={() => finishWorkoutMutation.mutate()} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(16,185,129,0.2)]">{finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}</button>
         <button onClick={() => { if(window.confirm('¿Abandonar? Se perderán las series de hoy.')) { clearSession(); navigate('/') } }} className="w-full text-red-500 font-bold p-4 rounded-xl active:scale-95 transition-transform bg-transparent">Abandonar Entrenamiento</button>
       </div>
-
       <RestTimer />
     </div>
   )
