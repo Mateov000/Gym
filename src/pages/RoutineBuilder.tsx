@@ -34,6 +34,7 @@ interface ParsedAlternative {
   originalName: string
   exercise_id: string
   is_new?: boolean
+  is_specified?: boolean
 }
 
 interface ParsedExercise {
@@ -42,6 +43,7 @@ interface ParsedExercise {
   target_sets: number
   target_reps: number
   is_new?: boolean
+  is_specified?: boolean
   alternatives?: ParsedAlternative[]
   config: { sets_config: { reps: number; weight: number }[], routine_alternatives?: string[] }
 }
@@ -57,7 +59,8 @@ interface ParsedRoutine {
   notes: string
   days: ParsedDay[]
   errors: string[]
-  newExercisesCount: number
+  autoCount: number
+  specifiedCount: number
 }
 
 export default function RoutineBuilder() {
@@ -67,7 +70,7 @@ export default function RoutineBuilder() {
   const [text, setText] = useState('')
   const [exercisesText, setExercisesText] = useState('')
   const [showExDefs, setShowExDefs] = useState(false)
-  const [importAsPublic, setImportAsPublic] = useState(false) // <--- NUEVO ESTADO
+  const [importAsPublic, setImportAsPublic] = useState(false)
 
   const { data: allExercises = [] } = useQuery({
     queryKey: ['exercises', 'catalog'],
@@ -75,8 +78,13 @@ export default function RoutineBuilder() {
   })
 
   const parsedResult = useMemo(() => {
-    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], newExercisesCount: 0 }
+    const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], autoCount: 0, specifiedCount: 0 }
     if (!text.trim()) return result
+
+    // 1. Extraer las definiciones de los ejercicios (leyendo de AMBAS cajas)
+    const combinedText = text + '\n\n' + exercisesText;
+    const parsedDefs = parseExercisesText(combinedText);
+    const specifiedNames = new Set(parsedDefs.map(d => normalize(d.name || '')));
 
     const uniqueNewEx = new Set<string>()
 
@@ -129,25 +137,40 @@ export default function RoutineBuilder() {
             });
         }
 
+        // Resolución del Ejercicio Principal
         const ex = allExercises.find(e => normalize(e.name) === normalize(mainExName))
         let is_new = false;
+        let is_specified = false;
         let exercise_id = ex?.id || 'NEW';
         
         if (!ex) { 
           is_new = true; 
           const norm = normalize(mainExName);
-          if (!uniqueNewEx.has(norm)) { uniqueNewEx.add(norm); result.newExercisesCount++; }
+          is_specified = specifiedNames.has(norm);
+
+          if (!uniqueNewEx.has(norm)) { 
+            uniqueNewEx.add(norm); 
+            if (is_specified) result.specifiedCount++; else result.autoCount++;
+          }
         }
 
+        // Resolución de Alternativas
         const alternatives = altNames.map(altName => {
            const altEx = allExercises.find(e => normalize(e.name) === normalize(altName))
            let alt_is_new = false;
+           let alt_is_specified = false;
+
            if (!altEx) { 
              alt_is_new = true; 
              const normAlt = normalize(altName);
-             if (!uniqueNewEx.has(normAlt)) { uniqueNewEx.add(normAlt); result.newExercisesCount++; }
+             alt_is_specified = specifiedNames.has(normAlt);
+
+             if (!uniqueNewEx.has(normAlt)) { 
+                uniqueNewEx.add(normAlt); 
+                if (alt_is_specified) result.specifiedCount++; else result.autoCount++;
+             }
            }
-           return { originalName: altName, exercise_id: altEx?.id || 'NEW', is_new: alt_is_new }
+           return { originalName: altName, exercise_id: altEx?.id || 'NEW', is_new: alt_is_new, is_specified: alt_is_specified }
         })
 
         currentDay.exercises.push({
@@ -156,6 +179,7 @@ export default function RoutineBuilder() {
            target_sets,
            target_reps: sets_config[0]?.reps || 10,
            is_new,
+           is_specified,
            alternatives,
            config: { sets_config }
         })
@@ -166,11 +190,12 @@ export default function RoutineBuilder() {
       result.errors.push('No has definido ningún día. Usa "Día: Nombre del día"')
     }
     return result
-  } , [text, allExercises])
+  } , [text, exercisesText, allExercises])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const defs = parseExercisesText(exercisesText);
+      // Parsear combinando ambos cuadros
+      const defs = parseExercisesText(text + '\n\n' + exercisesText);
       const defMap = new Map(defs.map(d => [normalize(d.name!), d]));
       const newExMap = new Map<string, string>(); 
 
@@ -190,7 +215,7 @@ export default function RoutineBuilder() {
                    muscle_group: manualDef?.muscle_group || 'Otro', 
                    description: manualDef?.description || '',
                    image_url: manualDef?.image_url || '',
-                   is_public: importAsPublic // <--- Usa la configuración de visibilidad
+                   is_public: importAsPublic
                  });
                  ex.exercise_id = createdEx.id;
                  newExMap.set(norm, createdEx.id);
@@ -211,7 +236,7 @@ export default function RoutineBuilder() {
                          muscle_group: manualDef?.muscle_group || 'Otro', 
                          description: manualDef?.description || '',
                          image_url: manualDef?.image_url || '',
-                         is_public: importAsPublic // <--- Usa la configuración de visibilidad
+                         is_public: importAsPublic
                        });
                        altIds.push(createdAlt.id);
                        newExMap.set(normAlt, createdAlt.id);
@@ -255,10 +280,16 @@ export default function RoutineBuilder() {
         </div>
       ) : text.trim().length > 10 ? (
         <div className="flex flex-col gap-3 mb-4">
-           {parsedResult.newExercisesCount > 0 && (
-             <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-3 rounded-2xl flex items-center gap-2 text-sm font-bold">
-               <Info size={18} className="flex-shrink-0" />
-               Se crearán {parsedResult.newExercisesCount} ejercicios nuevos automáticamente en tu catálogo privado.
+           {(parsedResult.autoCount > 0 || parsedResult.specifiedCount > 0) && (
+             <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-3 rounded-2xl flex flex-col gap-1.5 text-sm font-bold">
+               <div className="flex items-center gap-2">
+                 <Info size={18} className="flex-shrink-0" />
+                 Se crearán {parsedResult.autoCount + parsedResult.specifiedCount} ejercicios nuevos automáticamente.
+               </div>
+               <ul className="pl-7 text-xs text-yellow-500/80 font-normal list-disc space-y-0.5">
+                  {parsedResult.specifiedCount > 0 && <li><strong>{parsedResult.specifiedCount}</strong> fueron especificados por ti con detalles.</li>}
+                  {parsedResult.autoCount > 0 && <li><strong>{parsedResult.autoCount}</strong> se crearán con datos en blanco.</li>}
+               </ul>
              </div>
            )}
            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-2xl flex items-center justify-between text-sm font-bold">
@@ -273,7 +304,7 @@ export default function RoutineBuilder() {
       <div className="bg-zinc-900 p-4 rounded-2xl mb-4">
         <div className="flex items-start justify-between mb-3">
           <p className="text-xs text-zinc-400 leading-relaxed pr-4">
-            Pega aquí tu rutina. Usa "x" o "*" y añade "@ peso" al final si quieres. Usa " / " para añadir reemplazos.
+            Pega aquí tu rutina. Puedes definir los detalles de los ejercicios nuevos aquí mismo, o en la caja de abajo.
           </p>
           <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1.5 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform flex-shrink-0">
             <Bot size={14} /> Prompt IA
@@ -282,16 +313,18 @@ export default function RoutineBuilder() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-48 text-sm font-mono resize-none leading-relaxed"
-          placeholder={`Rutina: Fuerza y Volumen\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca / Mancuernas | 4x8 @ 60\nAperturas | 12@10, 10@12.5, 8@15`}
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-64 text-sm font-mono resize-none leading-relaxed"
+          placeholder={`Rutina: Fuerza y Volumen\n\nDía: Lunes\nPress Banca / Mancuernas | 4x8 @ 60\nEjercicio Inventado | 3x10\n\nNombre: Ejercicio Inventado\nGrupo: Pecho\nDescripcion: Así se hace...`}
         />
       </div>
 
-      {parsedResult.newExercisesCount > 0 && (
+      {(parsedResult.autoCount > 0 || parsedResult.specifiedCount > 0) && (
         <div className="mb-6">
-          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg active:scale-95 transition-all">
-            {showExDefs ? <ChevronUp size={14}/> : <ChevronDown size={14}/>} 
-            Añadir grupo muscular/imágenes a los ejercicios nuevos (Opcional)
+          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg active:scale-95 transition-all w-full justify-between">
+            <span className="flex items-center gap-2">
+              {showExDefs ? <ChevronUp size={14}/> : <ChevronDown size={14}/>} 
+              Añadir detalles a ejercicios por separado (Opcional)
+            </span>
           </button>
           
           {showExDefs && (
@@ -354,12 +387,20 @@ Descripcion: Mantén el torso recto...`}
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
-                          {ex.is_new && <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO</span>}
+                          {ex.is_new && (
+                             ex.is_specified 
+                               ? <span className="bg-emerald-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO (DEFINIDO)</span>
+                               : <span className="bg-yellow-500 text-zinc-950 text-[9px] px-1.5 rounded font-black">NUEVO (AUTO)</span>
+                          )}
                         </div>
                         
                         {ex.alternatives && ex.alternatives.length > 0 && (
-                           <p className="text-[10px] text-yellow-500/80 font-bold mt-1">
-                             <span className="text-yellow-600">Alts:</span> {ex.alternatives.map(a => a.originalName).join(', ')}
+                           <p className="text-[10px] text-zinc-500 font-bold mt-1">
+                             <span className="text-zinc-600">Alts:</span> {ex.alternatives.map(a => 
+                               a.is_new 
+                                 ? `${a.originalName} [NUEVO${a.is_specified ? ' DEFINIDO' : ' AUTO'}]` 
+                                 : a.originalName
+                             ).join(' / ')}
                            </p>
                         )}
 
