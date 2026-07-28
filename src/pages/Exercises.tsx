@@ -21,11 +21,59 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
     let isParsingDesc = false
     for (const line of lines) {
       const lowerLine = line.toLowerCase()
-      if (lowerLine.startsWith('nombre:')) { ex.name = line.substring(7).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('grupo:')) { ex.muscle_group = line.substring(6).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('imagen:')) { ex.image_url = line.substring(7).trim(); isParsingDesc = false }
-      else if (lowerLine.startsWith('descripcion:')) { ex.description = line.substring(12).trim(); isParsingDesc = true }
-      else if (isParsingDesc) { ex.description = (ex.description || '') + '\n' + line.trim() }
+      if (lowerLine.startsWith('nombre:')) { 
+        ex.name = line.substring(7).replace(/\*\*/g, '').trim()
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('grupo:')) { 
+        ex.muscle_group = line.substring(6).replace(/\*\*/g, '').trim()
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('equipamiento:')) { 
+        const eqMap: Record<string, string> = {
+          'barra': 'barbell', 'mancuernas': 'dumbbell', 'maquina': 'machine', 'máquina': 'machine',
+          'polea': 'cable', 'smith': 'smith', 'peso corporal': 'bodyweight', 'kettlebell': 'kettlebell'
+        }
+        const val = line.substring(13).trim().toLowerCase()
+        let matched = 'other'
+        for (const [k, v] of Object.entries(eqMap)) {
+           if (val.includes(k)) matched = v
+        }
+        ex.config = { ...(ex.config || {}), equipment: matched as any }
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('usa barra:') || lowerLine.startsWith('usa barra olímpica:')) {
+        const val = line.split(':')[1]?.trim().toLowerCase() || ''
+        const uses = val === 'si' || val === 'sí' || val === 'true' || val === 'yes'
+        ex.config = { ...(ex.config || {}), uses_barbell: uses }
+        isParsingDesc = false
+      }
+      else if (lowerLine.startsWith('peso barra:') || lowerLine.startsWith('barra kg:')) {
+        const val = parseFloat(line.split(':')[1]?.trim() || '0')
+        if (!isNaN(val)) {
+          ex.config = { ...(ex.config || {}), bar_weight: val }
+        }
+        isParsingDesc = false
+      }
+      else if (lowerLine.startsWith('visibilidad:')) {
+        const val = line.substring(12).trim().toLowerCase()
+        ex.is_public = val.includes('public') || val.includes('público')
+        isParsingDesc = false
+      }
+      else if (lowerLine.startsWith('imagen:')) { 
+        let imgStr = line.substring(7).trim()
+        const urlMatch = imgStr.match(/(https?:\/\/[^\s\]\)]+)/)
+        if (urlMatch) imgStr = urlMatch[1]
+        ex.image_url = imgStr
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('descripcion:')) { 
+        ex.description = line.substring(12).trim()
+        isParsingDesc = true 
+      }
+      else if (isParsingDesc) { 
+        ex.description = (ex.description || '') + '\n' + line.trim() 
+      }
     }
     if (ex.name) exercises.push(ex)
   }
@@ -134,7 +182,6 @@ export default function Exercises() {
     }
   }
 
-  // --- Validación del Formulario de Creación Individual ---
   const handleFormSave = () => {
     if (!editingEx || !editingEx.name) return
     const normName = normalize(editingEx.name)
@@ -146,7 +193,6 @@ export default function Exercises() {
     saveMutation.mutate(editingEx)
   }
 
-  // --- Paso 1: Analizar Texto de Importación ---
   const handleImportAnalyze = () => {
     const parsed = parseExercisesText(importText)
     if (parsed.length === 0) {
@@ -167,15 +213,20 @@ export default function Exercises() {
     setView('import-review')
   }
 
-  // --- Paso 2: Ejecutar Acciones Confirmadas ---
   const handleConfirmImport = async () => {
     setIsImporting(true)
     try {
       const promises = importReviewItems.map(item => {
+        const finalPayload = {
+          ...item.parsed,
+          is_public: item.parsed.is_public ?? importAsPublic,
+          config: item.parsed.config || {}
+        }
+
         if (item.action === 'add') {
-          return createExercise({ ...item.parsed, is_public: importAsPublic })
+          return createExercise(finalPayload)
         } else if (item.action === 'replace' && item.existingId) {
-          return updateExercise(item.existingId, { ...item.parsed, is_public: importAsPublic })
+          return updateExercise(item.existingId, finalPayload)
         }
         return Promise.resolve()
       })
@@ -193,8 +244,6 @@ export default function Exercises() {
     }
   }
 
-  // ================= RENDERIZADO DE VISTAS ================= //
-
   if (view === 'import') {
     return (
       <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
@@ -210,10 +259,10 @@ export default function Exercises() {
           <div className="pr-4">
             <div className="flex items-center gap-2 mb-1">
               {importAsPublic ? <Globe2 size={16} className="text-emerald-500" /> : <Lock size={16} className="text-blue-400" />}
-              <p className="font-bold text-zinc-100">Visibilidad</p>
+              <p className="font-bold text-zinc-100">Visibilidad por defecto</p>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              {importAsPublic ? 'Todos los usuarios de la app verán estos ejercicios.' : 'Solo tú podrás ver y usar estos ejercicios.'}
+              {importAsPublic ? 'Todos verán los ejercicios sin etiqueta individual.' : 'Solo tú verás los ejercicios sin etiqueta individual.'}
             </p>
           </div>
           <button onClick={() => setImportAsPublic(!importAsPublic)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${importAsPublic ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
@@ -231,16 +280,19 @@ export default function Exercises() {
           <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
 {`Nombre: Sentadilla Búlgara
 Grupo: Piernas
+Equipamiento: Mancuernas
+Usa barra: no
+Peso barra: 20
+Visibilidad: privado
 Imagen: https://link-al-gif.com/img.gif
 Descripcion: Mantén el torso recto...`}
           </pre>
         </div>
-        <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-100 outline-none focus:border-emerald-500 resize-none h-64 text-sm" placeholder="Pega tus ejercicios aquí..." />
+        <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-100 outline-none focus:border-emerald-500 resize-none h-64 text-sm font-mono" placeholder="Pega tus ejercicios aquí..." />
       </div>
     )
   }
 
-  // --- Vista de Confirmación de Importación ---
   if (view === 'import-review') {
     return (
       <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
@@ -258,6 +310,7 @@ Descripcion: Mantén el torso recto...`}
               <div className="flex justify-between items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-zinc-100 truncate">{item.parsed.name}</p>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">Grupo: {item.parsed.muscle_group || 'Otro'}</p>
                   {item.status === 'new' ? (
                     <span className="text-[10px] text-emerald-500 uppercase tracking-widest font-bold">Nuevo (Se agregará)</span>
                   ) : (
@@ -310,7 +363,6 @@ Descripcion: Mantén el torso recto...`}
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Grupo Muscular</label>
             <input type="text" value={editingEx.muscle_group || ''} onChange={e => setEditingEx({ ...editingEx, muscle_group: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 mb-4" placeholder="Ej: Pecho, Espalda, Piernas..." />
             
-            {/* ---> NUEVO: Selector de Equipamiento <--- */}
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Equipamiento</label>
             <select 
               value={editingEx.config?.equipment || 'other'} 
@@ -334,7 +386,6 @@ Descripcion: Mantén el torso recto...`}
           </div>
 
           <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-            
             <div className="flex items-center justify-between pb-4 border-b border-zinc-800 mb-4">
               <div className="pr-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -364,7 +415,6 @@ Descripcion: Mantén el torso recto...`}
                 <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${editingEx.config?.uses_barbell ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
-
           </div>
 
           {editingEx.id && (
@@ -418,7 +468,6 @@ Descripcion: Mantén el torso recto...`}
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {ex.muscle_group && <p className="text-xs text-zinc-500 uppercase tracking-wider">{ex.muscle_group}</p>}
                     
-                    {/* ---> NUEVO: Etiqueta Visual de Equipamiento <--- */}
                     {ex.config?.equipment && ex.config.equipment !== 'other' && (
                       <span className="text-[9px] uppercase tracking-widest bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700">
                         {ex.config.equipment === 'dumbbell' ? 'Mancuernas' :
@@ -432,9 +481,9 @@ Descripcion: Mantén el torso recto...`}
                     )}
 
                     {ex.is_public ? (
-                      <span className="text-[9px] uppercase tracking-widest bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20">Público</span>
+                      <span className="text-[9px] uppercase tracking-widest bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">Público</span>
                     ) : (
-                      <span className="text-[9px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">Privado</span>
+                      <span className="text-[9px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">Privado</span>
                     )}
                   </div>
                 </div>
@@ -453,7 +502,7 @@ Descripcion: Mantén el torso recto...`}
 
       {!activeSession && (
         <button 
-          onClick={() => { setEditingEx({ name: '', muscle_group: '', description: '', image_url: '', is_public: false }); setView('form'); }}
+          onClick={() => { setEditingEx({ name: '', muscle_group: '', description: '', image_url: '', is_public: false, config: { equipment: 'other', uses_barbell: false } }); setView('form'); }}
           className="fixed bottom-24 right-6 bg-emerald-500 text-zinc-950 p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition-transform z-40"
         >
           <Plus size={28} strokeWidth={3} />
