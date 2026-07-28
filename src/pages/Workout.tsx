@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowLeft, ArrowUp, ArrowDown, Zap, Star, RefreshCw } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
