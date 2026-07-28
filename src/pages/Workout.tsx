@@ -155,7 +155,10 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
 // --- TRACKER INDIVIDUAL DEL EJERCICIO ---
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
-  const { showQuickCompleteButton, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
+  
+  // ---> AQUÍ ESCUCHAMOS EL BOTÓN 'enableRir' DE LA CONFIGURACIÓN <---
+  const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
+  
   const [showMenu, setShowMenu] = useState(false); const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const exercise = useMemo(() => {
@@ -174,7 +177,7 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
   
   const routineExId = workoutEx.meta?.routine_exercise_id || exercise.id
   const currentUnit = workoutEx.meta?.active_unit || exerciseUnits[routineExId] || resolvedConfig.weight_unit || 'kg'
-  const currentNote = routineNotes[routineExId] || '' // <--- AQUÍ SE DEFINE LA VARIABLE FALTANTE
+  const currentNote = routineNotes[routineExId] || '' 
   
   const allAvailableUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...(resolvedConfig.custom_units || []), ...globalCustomUnits]))
   const [isCreatingUnit, setIsCreatingUnit] = useState(false)
@@ -190,7 +193,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
   const [showSwapList, setShowSwapList] = useState(false)
   const [showImage, setShowImage] = useState(false)
 
-  // ---> INTELIGENCIA DE SMART DEFAULT SERIE POR SERIE <---
   useEffect(() => {
     const smartKey = `${routineExId}-${exercise.id}-set-${currentSetIndex}`
     const rDef = defaultsMap.get(smartKey)
@@ -250,7 +252,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
     setShowSwapList(false)
   }
 
-  // Lógica de Renderizado del Swap List
   const routineAltsIds = resolvedConfig.routine_alternatives || []
   const routineAlts = routineAltsIds.map((id: string) => allExercises.find((e: Exercise) => e.id === id)).filter(Boolean)
   
@@ -265,7 +266,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
   return (
     <div className={`bg-zinc-900 border rounded-2xl p-4 sm:p-5 mb-4 relative transition-all duration-500 ${isCompletedVisual ? 'border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800'} ${workoutEx.meta?.superset_id ? 'border-l-4 border-l-blue-500' : ''}`}>
       
-      {/* MENÚ DE 3 PUNTITOS */}
       <div className="absolute top-4 right-4 z-10">
         <button onClick={() => setShowMenu(!showMenu)} className="p-2 text-zinc-500 hover:text-zinc-300 bg-zinc-950 rounded-xl"><MoreVertical size={18}/></button>
         {showMenu && (
@@ -304,7 +304,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
         </div>
       )}
 
-      {/* CAJA DE NOTAS PERSISTENTE (CON LA VARIABLE CORRECTA) */}
       <div className="mb-5 relative">
         <AlignLeft size={16} className="absolute top-3 left-3 text-zinc-600" />
         <textarea 
@@ -317,7 +316,8 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
       {sets.length > 0 && (
         <div className="mb-6 flex flex-col gap-2">
-          {sets.map((set: any, idx: number) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} isExtra={idx >= targetSets} currentUnit={currentUnit} useRir={resolvedConfig.use_rir}/>)}
+          {/* ---> AQUÍ LE PASAMOS enableRir PARA QUE ENCIENDA LA CAJITA <--- */}
+          {sets.map((set: any, idx: number) => <ActiveSetRow key={idx} exerciseId={exercise.id} set={set} index={idx} updateSet={updateSet} removeSet={removeSet} isExtra={idx >= targetSets} currentUnit={currentUnit} useRir={enableRir || resolvedConfig.use_rir}/>)}
         </div>
       )}
 
@@ -351,7 +351,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
         )}
       </div>
 
-      {/* ---> SECCIÓN DE INTERCAMBIO (SWAP) MEJORADA Y TIPADA <--- */}
       {showSwapList && (
         <div className="mt-4 border-t border-zinc-800 pt-4 animate-in fade-in">
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
