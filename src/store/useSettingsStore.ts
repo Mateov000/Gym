@@ -12,6 +12,10 @@ interface SettingsStore {
   showQuickCompleteButton: boolean
   setShowQuickCompleteButton: (val: boolean) => void
   
+  // ---> NUEVO: Interruptor Maestro para RIR <---
+  enableRir: boolean
+  setEnableRir: (val: boolean) => void
+
   globalCustomUnits: string[]
   addGlobalCustomUnit: (unit: string) => void
   removeGlobalCustomUnit: (unit: string) => void
@@ -26,7 +30,6 @@ interface SettingsStore {
   exerciseUnits: Record<string, string>
   setExerciseUnit: (routineExId: string, unit: string) => void
 
-  // ---> NUEVO: Biblioteca de Rutinas Sincronizadas <---
   subscribedRoutines: string[]
   addSubscribedRoutine: (id: string) => void
   removeSubscribedRoutine: (id: string) => void
@@ -37,6 +40,9 @@ export const useSettingsStore = create<SettingsStore>()(
     (set) => ({
       showQuickCompleteButton: true,
       setShowQuickCompleteButton: (val) => set({ showQuickCompleteButton: val }),
+      
+      enableRir: false,
+      setEnableRir: (val) => set({ enableRir: val }),
       
       globalCustomUnits: [],
       addGlobalCustomUnit: (unit) => set((state) => {
