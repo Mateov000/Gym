@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag, X, Bot, Copy, Download, FileText, Code } from 'lucide-react'
+import { ArrowLeft, Trash2, AlertTriangle, Plus, Scale, Tag, X, Bot, Copy, Download, FileText, Code, Key } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { deleteAllWorkoutHistory, fetchAllWorkoutData, fetchExercises } from '../lib/queries'
 
-export const COPY_AI_PROMPT = () => {
-  const prompt = `Actúa como un experto entrenador personal. Quiero que me generes rutinas de gimnasio y listas de ejercicios usando ESTRICTAMENTE los siguientes formatos de texto para que yo pueda copiarlos y pegarlos directamente en mi aplicación. No uses markdown ni viñetas, solo texto plano con la estructura exacta:
+// Exportamos el texto maestro para usarlo en la llamada a la API
+export const SYSTEM_PROMPT = `Actúa como un experto entrenador personal. Quiero que me generes rutinas de gimnasio y listas de ejercicios usando ESTRICTAMENTE los siguientes formatos de texto para que yo pueda copiarlos y pegarlos directamente en mi aplicación. No uses markdown ni viñetas, solo texto plano con la estructura exacta:
 
 Para crear una RUTINA entera, usa este formato:
 Rutina: [Nombre de la Rutina]
@@ -16,8 +16,6 @@ Notas: [Cualquier indicación general]
 Día: [Nombre del Día]
 [Nombre Ejercicio] / [Alternativa 1] / [Alternativa 2] | [Series]x[Reps] @ [Peso opcional]
 [Nombre Ejercicio] | [Reps]@[Peso], [Reps]@[Peso]
-
-(Nota: Las alternativas usando " / " y el peso inicial usando " @ " son opcionales, puedes incluirlos o no dependiendo de la rutina).
 
 Ejemplo de Rutina:
 Rutina: Fuerza Total
@@ -32,16 +30,19 @@ Aperturas en Polea / Pec Deck | 12@10, 10@12.5, 8@15
 Para crear EJERCICIOS sueltos para mi catálogo, usa este formato (separa cada uno con doble salto de línea):
 Nombre: [Nombre]
 Grupo: [Músculo]
+Equipamiento: [Barra / Mancuernas / Polea / Máquina / Peso Corporal / Smith / Kettlebell]
 Imagen: [URL]
 Descripcion: [Tips]
 
 Ejemplo de Ejercicios:
 Nombre: Curl de Bíceps
 Grupo: Brazos
+Equipamiento: Polea
 Imagen: https://ejemplo.com/curl.gif
 Descripcion: Mantén los codos pegados al torso.`;
-  
-  navigator.clipboard.writeText(prompt);
+
+export const COPY_AI_PROMPT = () => {
+  navigator.clipboard.writeText(SYSTEM_PROMPT);
   alert('¡Prompt copiado al portapapeles! Pégalo en tu IA favorita (ChatGPT, Claude, Gemini) para generar rutinas que puedas importar al instante.');
 }
 
@@ -58,7 +59,9 @@ export default function Settings() {
     removeGlobalCustomUnit,
     equivalencies,
     addEquivalency,
-    removeEquivalency
+    removeEquivalency,
+    aiApiKey,
+    setAiApiKey
   } = useSettingsStore()
 
   const allUnits = Array.from(new Set(['kg', 'lbs', 'bodyweight', ...globalCustomUnits]))
@@ -152,16 +155,28 @@ export default function Settings() {
 
       <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4 mb-6">
         <h2 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Bot size={16} /> Asistente IA
+          <Bot size={16} /> Inteligencia Artificial (Nativo)
         </h2>
         <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-          Copia este "Prompt" y envíaselo a tu Inteligencia Artificial favorita (ChatGPT, Claude, Gemini). Le enseñará a hablar el mismo idioma que esta aplicación para que te diseñe rutinas que puedas importar con un click.
+          Ingresa tu clave de OpenAI para permitir que la app genere rutinas automáticamente por ti desde el "Creador de Rutinas". O puedes seguir usando el Prompt para copiar y pegar manualmente.
         </p>
+        
+        <div className="flex items-center gap-2 mb-4">
+          <Key size={16} className="text-zinc-500" />
+          <input 
+            type="password" 
+            value={aiApiKey} 
+            onChange={(e) => setAiApiKey(e.target.value)} 
+            placeholder="sk-proj-..." 
+            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
+          />
+        </div>
+
         <button 
           onClick={COPY_AI_PROMPT}
           className="w-full py-3 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl font-bold flex justify-center items-center gap-2 transition-colors hover:bg-indigo-500/20 active:scale-95"
         >
-          <Copy size={18} /> Copiar Instrucciones para IA
+          <Copy size={18} /> Copiar Prompt Manual
         </button>
       </div>
 

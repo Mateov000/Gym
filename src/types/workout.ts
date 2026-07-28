@@ -36,7 +36,9 @@ export interface ExerciseConfig {
   show_google_search?: boolean
   sets_config?: { reps: number; weight: number }[]
   routine_alternatives?: string[] 
-  uses_barbell?: boolean // <--- NUEVO: Para activar PlateMath
+  uses_barbell?: boolean
+  // ---> NUEVO: Equipamiento <---
+  equipment?: 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'smith' | 'kettlebell' | 'other'
 }
 
 export interface WorkoutSessionOptions {

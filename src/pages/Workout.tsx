@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw, Building2 } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
@@ -121,6 +121,7 @@ const HistoryModal = ({ exercise, onClose }: { exercise: Exercise, onClose: () =
 // --- TRACKER INDIVIDUAL DEL EJERCICIO ---
 const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, swapCandidates, onSwapExercise, isLastInSuperset }: any) => {
   const { addSet, completeSet, removeSet, updateSet, updateExerciseUnit, activeSession } = useWorkoutStore()
+  const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit, hotelMode, setHotelMode } = useSettingsStore()
   const { showQuickCompleteButton, enableRir, equivalencies, routineNotes, setRoutineNote, globalCustomUnits, addGlobalCustomUnit, exerciseUnits, setExerciseUnit } = useSettingsStore()
   const [showMenu, setShowMenu] = useState(false); const [showHistoryModal, setShowHistoryModal] = useState(false)
 
@@ -261,42 +262,67 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
 
       {showSwapList && (
         <div className="mt-4 border-t border-zinc-800 pt-4 animate-in fade-in">
+          
+          {/* ---> NUEVO: TOGGLE MODO HOTEL <--- */}
+          <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/20 p-3 rounded-xl mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-500"><Building2 size={16} /></div>
+              <div>
+                <p className="text-sm font-bold text-zinc-200">Modo Hotel</p>
+                <p className="text-[10px] text-zinc-400">Ocultar opciones de Barra y Máquina Smith</p>
+              </div>
+            </div>
+            <button onClick={() => setHotelMode(!hotelMode)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${hotelMode ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${hotelMode ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
           <div className="flex flex-wrap gap-2">
             
-            {routineAlts.map((c: any) => (
-              <button key={`routine-alt-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(234,179,8,0.15)]"><Star size={12} fill="currentColor"/> {c.name}</button>
-            ))}
+            {/* LÓGICA DE FILTRADO CONDICIONAL */}
+            {(() => {
+              const isHotelFriendly = (c: Exercise) => !hotelMode || !['barbell', 'smith'].includes(c.config?.equipment || 'other');
+              
+              const filteredRoutineAlts = routineAlts.filter(isHotelFriendly);
+              const filteredSmartSwaps = smartSwaps.filter(isHotelFriendly);
+              const filteredGenericSwaps = genericSwaps.filter(isHotelFriendly);
+              const filteredCatalog = allExercises.filter((e: Exercise) => e.id !== exercise.id && isHotelFriendly(e)).sort((a: Exercise, b: Exercise) => a.name.localeCompare(b.name));
 
-            {smartSwaps.map((c: any) => (
-              <button key={`smart-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.15)]"><Zap size={12} fill="currentColor"/> {c.name}</button>
-            ))}
+              return (
+                <>
+                  {filteredRoutineAlts.map((c: any) => (
+                    <button key={`routine-alt-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(234,179,8,0.15)]"><Star size={12} fill="currentColor"/> {c.name}</button>
+                  ))}
 
-            {genericSwaps.slice(0, 5).map((c: Exercise) => (
-              <button key={c.id} onClick={() => handleSwapSelection(c)} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700">{c.name}</button>
-            ))}
+                  {filteredSmartSwaps.map((c: any) => (
+                    <button key={`smart-${c.id}`} onClick={() => handleSwapSelection(c)} className="text-xs bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.15)]"><Zap size={12} fill="currentColor"/> {c.name}</button>
+                  ))}
 
-            {allExercises.length > 0 && (
-              <select 
-                className="text-xs bg-zinc-900 border border-zinc-700 text-zinc-400 px-3 py-2 rounded-lg outline-none focus:border-emerald-500 max-w-[200px]"
-                onChange={(e) => {
-                  const ex = allExercises.find((a: Exercise) => a.id === e.target.value);
-                  if(ex) handleSwapSelection(ex);
-                }}
-                defaultValue=""
-              >
-                <option value="" disabled>+ Todo el catálogo...</option>
-                {allExercises
-                  .filter((e: Exercise) => e.id !== exercise.id)
-                  .sort((a: Exercise, b: Exercise) => a.name.localeCompare(b.name))
-                  .map((e: Exercise) => (
-                    <option key={e.id} value={e.id}>{e.name} {e.muscle_group ? `(${e.muscle_group})` : ''}</option>
-                  ))
-                }
-              </select>
-            )}
+                  {filteredGenericSwaps.slice(0, 5).map((c: Exercise) => (
+                    <button key={c.id} onClick={() => handleSwapSelection(c)} className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-200 px-3 py-2 rounded-lg active:bg-zinc-700">{c.name}</button>
+                  ))}
 
-            {swapCandidates.length === 0 && smartSwaps.length === 0 && routineAlts.length === 0 && <span className="text-xs text-zinc-500">No hay alternativas claras.</span>}
+                  {filteredCatalog.length > 0 && (
+                    <select 
+                      className="text-xs bg-zinc-900 border border-zinc-700 text-zinc-400 px-3 py-2 rounded-lg outline-none focus:border-emerald-500 max-w-[200px]"
+                      onChange={(e) => {
+                        const ex = filteredCatalog.find((a: Exercise) => a.id === e.target.value);
+                        if(ex) handleSwapSelection(ex);
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>+ Todo el catálogo...</option>
+                      {filteredCatalog.map((e: Exercise) => (
+                          <option key={e.id} value={e.id}>{e.name} {e.muscle_group ? `(${e.muscle_group})` : ''}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {filteredGenericSwaps.length === 0 && filteredSmartSwaps.length === 0 && filteredRoutineAlts.length === 0 && <span className="text-xs text-zinc-500">No hay alternativas válidas {hotelMode && 'para Modo Hotel'}.</span>}
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

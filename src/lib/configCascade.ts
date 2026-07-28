@@ -12,7 +12,8 @@ const DEFAULT_CONFIG: Required<ExerciseConfig> = {
   show_google_search: false,
   sets_config: [], 
   routine_alternatives: [],
-  uses_barbell: false, // <--- NUEVO
+  uses_barbell: false,
+  equipment: 'other', // <--- NUEVO
 }
 
 export function resolveExerciseConfig(

@@ -306,8 +306,27 @@ Descripcion: Mantén el torso recto...`}
           <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Nombre *</label>
             <input type="text" value={editingEx.name || ''} onChange={e => setEditingEx({ ...editingEx, name: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 mb-4" placeholder="Ej: Press de Banca" />
+            
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Grupo Muscular</label>
             <input type="text" value={editingEx.muscle_group || ''} onChange={e => setEditingEx({ ...editingEx, muscle_group: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 mb-4" placeholder="Ej: Pecho, Espalda, Piernas..." />
+            
+            {/* ---> NUEVO: Selector de Equipamiento <--- */}
+            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Equipamiento</label>
+            <select 
+              value={editingEx.config?.equipment || 'other'} 
+              onChange={e => setEditingEx({ ...editingEx, config: { ...(editingEx.config || {}), equipment: e.target.value as any } })}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 mb-4"
+            >
+              <option value="other">Otro / No especificado</option>
+              <option value="bodyweight">Peso Corporal</option>
+              <option value="dumbbell">Mancuernas</option>
+              <option value="barbell">Barra Olímpica</option>
+              <option value="machine">Máquinas</option>
+              <option value="cable">Poleas</option>
+              <option value="smith">Máquina Smith</option>
+              <option value="kettlebell">Pesa Rusa (Kettlebell)</option>
+            </select>
+
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Enlace de Imagen / GIF</label>
             <input type="url" value={editingEx.image_url || ''} onChange={e => setEditingEx({ ...editingEx, image_url: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 mb-4" placeholder="https://..." />
             <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Técnica y Notas</label>
@@ -396,12 +415,26 @@ Descripcion: Mantén el torso recto...`}
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-zinc-100 truncate">{ex.name}</h3>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     {ex.muscle_group && <p className="text-xs text-zinc-500 uppercase tracking-wider">{ex.muscle_group}</p>}
+                    
+                    {/* ---> NUEVO: Etiqueta Visual de Equipamiento <--- */}
+                    {ex.config?.equipment && ex.config.equipment !== 'other' && (
+                      <span className="text-[9px] uppercase tracking-widest bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700">
+                        {ex.config.equipment === 'dumbbell' ? 'Mancuernas' :
+                         ex.config.equipment === 'barbell' ? 'Barra' :
+                         ex.config.equipment === 'machine' ? 'Máquina' :
+                         ex.config.equipment === 'cable' ? 'Polea' :
+                         ex.config.equipment === 'bodyweight' ? 'Corporal' :
+                         ex.config.equipment === 'smith' ? 'Smith' :
+                         ex.config.equipment === 'kettlebell' ? 'Kettlebell' : ''}
+                      </span>
+                    )}
+
                     {ex.is_public ? (
-                      <span className="text-[9px] uppercase tracking-widest bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">Público</span>
+                      <span className="text-[9px] uppercase tracking-widest bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20">Público</span>
                     ) : (
-                      <span className="text-[9px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">Privado</span>
+                      <span className="text-[9px] uppercase tracking-widest bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">Privado</span>
                     )}
                   </div>
                 </div>

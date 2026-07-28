@@ -5,6 +5,9 @@ import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
 import type { Exercise } from '../types/workout'
+import { SYSTEM_PROMPT } from './Settings'
+import { Sparkles } from 'lucide-react'
+import { useSettingsStore } from '../store/useSettingsStore'
 
 // --- FUNCIONES DE LIMPIEZA Y SIMILITUD ---
 const normalize = (str: string) => 
@@ -49,6 +52,19 @@ function parseExercisesText(text: string): Partial<Exercise>[] {
       }
       else if (lowerLine.startsWith('grupo:')) { 
         ex.muscle_group = line.substring(6).replace(/\*\*/g, '').trim()
+        isParsingDesc = false 
+      }
+      else if (lowerLine.startsWith('equipamiento:')) { 
+        const eqMap: Record<string, string> = {
+          'barra': 'barbell', 'mancuernas': 'dumbbell', 'maquina': 'machine', 'máquina': 'machine',
+          'polea': 'cable', 'smith': 'smith', 'peso corporal': 'bodyweight', 'kettlebell': 'kettlebell'
+        }
+        const val = line.substring(13).trim().toLowerCase()
+        let matched = 'other'
+        for (const [k, v] of Object.entries(eqMap)) {
+           if (val.includes(k)) matched = v
+        }
+        ex.config = { ...ex.config, equipment: matched as any }
         isParsingDesc = false 
       }
       else if (lowerLine.startsWith('imagen:')) { 
@@ -116,6 +132,11 @@ export default function RoutineBuilder() {
   const [exercisesText, setExercisesText] = useState('')
   const [showExDefs, setShowExDefs] = useState(false)
   const [importAsPublic, setImportAsPublic] = useState(false)
+
+  const { aiApiKey } = useSettingsStore() // <--- Extraemos la key
+  const [aiInput, setAiInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showAiModal, setShowAiModal] = useState(false)
   
   // Estado para guardar las decisiones del usuario frente a las búsquedas difusas
   const [resolutions, setResolutions] = useState<Record<string, string>>({})
@@ -355,6 +376,44 @@ export default function RoutineBuilder() {
       : <span className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest whitespace-nowrap">Nuevo (Auto)</span>
   }
 
+  const handleGenerateAI = async () => {
+    if (!aiApiKey) {
+      alert("Por favor, configura tu API Key de OpenAI en la pestaña Perfil -> Configuración.")
+      return
+    }
+    if (!aiInput) return
+
+    setIsGenerating(true)
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aiApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: aiInput }
+          ],
+          temperature: 0.7
+        })
+      })
+      const data = await response.json()
+      if (data.error) throw new Error(data.error.message)
+      
+      const result = data.choices[0].message.content
+      setText(result)
+      setShowAiModal(false)
+      setAiInput('')
+    } catch (err: any) {
+      alert('Error de IA: ' + err.message)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -362,10 +421,38 @@ export default function RoutineBuilder() {
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold">Importador Estructurado</h1>
-        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || parsedResult.errors.length > 0 || parsedResult.days.length === 0} className="bg-zinc-800 text-zinc-100 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50 active:scale-95 transition-transform" aria-label="Guardar">
-          <Save size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* ---> NUEVO BOTÓN DE IA <--- */}
+          <button onClick={() => setShowAiModal(true)} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 p-2.5 rounded-xl font-bold active:scale-95 transition-transform flex items-center gap-1.5 text-xs">
+            <Sparkles size={16} /> IA
+          </button>
+          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || parsedResult.errors.length > 0 || parsedResult.days.length === 0} className="bg-zinc-800 text-zinc-100 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50 active:scale-95 transition-transform" aria-label="Guardar">
+            <Save size={20} />
+          </button>
+        </div>
       </div>
+
+      {showAiModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-zinc-900 w-full sm:max-w-md rounded-3xl p-6 relative animate-in slide-in-from-bottom-10 border border-indigo-500/30">
+            <button onClick={() => setShowAiModal(false)} className="absolute top-4 right-4 p-2 bg-zinc-800 rounded-full text-zinc-400"><X size={20}/></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-indigo-500/20 p-3 rounded-full text-indigo-400"><Sparkles size={24} /></div>
+              <h2 className="text-xl font-bold text-zinc-100">Entrenador IA</h2>
+            </div>
+            <p className="text-sm text-zinc-400 mb-4">Dile qué tipo de rutina necesitas (días, objetivo, lesiones, tiempo) y la IA escribirá la estructura por ti.</p>
+            <textarea 
+              value={aiInput} 
+              onChange={e => setAiInput(e.target.value)} 
+              placeholder="Ej: Hazme una rutina de 4 días (PPL + FullBody). No puedo hacer sentadilla libre por una lesión en la lumbar."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-indigo-500 h-32 text-sm resize-none mb-4"
+            />
+            <button onClick={handleGenerateAI} disabled={isGenerating || !aiInput} className="w-full bg-indigo-500 text-white font-bold p-4 rounded-xl flex justify-center items-center gap-2 disabled:opacity-50 active:scale-95 transition-transform">
+              {isGenerating ? 'Generando rutina...' : 'Generar Rutina'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {parsedResult.errors.length > 0 ? (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl mb-4 flex flex-col gap-2 text-sm">

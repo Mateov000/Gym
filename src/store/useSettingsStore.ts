@@ -8,7 +8,6 @@ export interface Equivalency {
   multiplier: number
 }
 
-// ---> NUEVO: Interfaz de Biometría <---
 export interface BiometricEntry {
   id: string
   date: string
@@ -40,10 +39,16 @@ interface SettingsStore {
   addSubscribedRoutine: (id: string) => void
   removeSubscribedRoutine: (id: string) => void
 
-  // ---> NUEVO: Funciones de Biometría <---
   biometrics: BiometricEntry[]
   addBiometric: (weight: number, date?: string) => void
   removeBiometric: (id: string) => void
+
+  // ---> NUEVO: Sprint 4 <---
+  hotelMode: boolean
+  setHotelMode: (val: boolean) => void
+  
+  aiApiKey: string
+  setAiApiKey: (key: string) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -94,7 +99,6 @@ export const useSettingsStore = create<SettingsStore>()(
         subscribedRoutines: state.subscribedRoutines.filter(r => r !== id)
       })),
 
-      // ---> NUEVO: Lógica de Biometría <---
       biometrics: [],
       addBiometric: (weight, date = new Date().toISOString()) => set((state) => ({
         biometrics: [...state.biometrics, { id: crypto.randomUUID(), date, weight }].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -102,6 +106,13 @@ export const useSettingsStore = create<SettingsStore>()(
       removeBiometric: (id) => set((state) => ({
         biometrics: state.biometrics.filter(b => b.id !== id)
       })),
+
+      // ---> NUEVO: Sprint 4 <---
+      hotelMode: false,
+      setHotelMode: (val) => set({ hotelMode: val }),
+      
+      aiApiKey: '',
+      setAiApiKey: (key) => set({ aiApiKey: key }),
     }),
     {
       name: 'app-settings',
