@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download, Globe2, Lock } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, ArrowLeft, Save, Dumbbell, Download, Globe2, Lock, Bot } from 'lucide-react'
 import { fetchExercises, createExercise, updateExercise, deleteExercise, deleteAllExercises } from '../lib/queries'
 import { useWorkoutStore } from '../store/useWorkoutStore'
 import { supabase } from '../lib/supabase'
 import type { Exercise } from '../types/workout'
+import { COPY_AI_PROMPT } from './Settings'
 
 function parseExercisesText(text: string): Partial<Exercise>[] {
   const exercises: Partial<Exercise>[] = []
@@ -50,8 +51,6 @@ export default function Exercises() {
   
   const [importText, setImportText] = useState('')
   const [isImporting, setIsImporting] = useState(false)
-  
-  // ---> NUEVO: Estado para saber si importar como público o privado <---
   const [importAsPublic, setImportAsPublic] = useState(false)
 
   const filteredExercises = useMemo(() => {
@@ -127,7 +126,6 @@ export default function Exercises() {
       const parsed = parseExercisesText(importText)
       if (parsed.length === 0) throw new Error("No se detectó ningún ejercicio válido.")
 
-      // ---> NUEVO: Respetamos la decisión del usuario (importAsPublic) <---
       await Promise.all(parsed.map(ex => createExercise({ ...ex, is_public: importAsPublic })))
 
       await queryClient.invalidateQueries({ queryKey: ['exercises', 'catalog'] })
@@ -143,35 +141,35 @@ export default function Exercises() {
 
   if (view === 'import') {
     return (
-      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative">
+      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <button onClick={() => setView('list')} className="p-2 bg-zinc-900 rounded-xl text-zinc-400"><ArrowLeft size={24} /></button>
           <h1 className="text-xl font-bold">Importar Ejercicios</h1>
           <button onClick={handleImportSubmit} disabled={isImporting || !importText.trim()} className="p-2 bg-emerald-500 text-zinc-950 rounded-xl font-bold disabled:opacity-50"><Save size={20} /></button>
         </div>
 
-        {/* ---> NUEVO: Selector visual para importación Pública/Privada <--- */}
         <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4 flex items-center justify-between">
           <div className="pr-4">
             <div className="flex items-center gap-2 mb-1">
               {importAsPublic ? <Globe2 size={16} className="text-emerald-500" /> : <Lock size={16} className="text-blue-400" />}
-              <p className="font-bold text-zinc-100">Visibilidad de importación</p>
+              <p className="font-bold text-zinc-100">Visibilidad</p>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed">
               {importAsPublic ? 'Todos los usuarios de la app verán estos ejercicios.' : 'Solo tú podrás ver y usar estos ejercicios.'}
             </p>
           </div>
-          
-          <button 
-            onClick={() => setImportAsPublic(!importAsPublic)}
-            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${importAsPublic ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-          >
+          <button onClick={() => setImportAsPublic(!importAsPublic)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${importAsPublic ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
             <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${importAsPublic ? 'translate-x-6' : 'translate-x-0'}`} />
           </button>
         </div>
 
         <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4">
-          <h2 className="text-sm font-bold text-emerald-500 mb-2">Formato requerido:</h2>
+          <div className="flex items-start justify-between mb-2">
+            <h2 className="text-sm font-bold text-emerald-500">Formato requerido:</h2>
+            <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform">
+              <Bot size={12} /> Prompt IA
+            </button>
+          </div>
           <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
 {`Nombre: Sentadilla Búlgara
 Grupo: Piernas
@@ -186,7 +184,7 @@ Descripcion: Mantén el torso recto...`}
 
   if (view === 'form' && editingEx) {
     return (
-      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative">
+      <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <button onClick={() => { setView('list'); setEditingEx(null) }} className="p-2 bg-zinc-900 rounded-xl text-zinc-400"><ArrowLeft size={24} /></button>
           <h1 className="text-xl font-bold">{editingEx.id ? 'Editar' : 'Nuevo Ejercicio'}</h1>
@@ -222,11 +220,7 @@ Descripcion: Mantén el torso recto...`}
                   {editingEx.is_public ? 'Público: Todos los usuarios verán este ejercicio en su catálogo.' : 'Privado: Solo tú podrás usar y ver este ejercicio.'}
                 </p>
               </div>
-              
-              <button 
-                onClick={() => setEditingEx({ ...editingEx, is_public: !editingEx.is_public })}
-                className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${editingEx.is_public ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-              >
+              <button onClick={() => setEditingEx({ ...editingEx, is_public: !editingEx.is_public })} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${editingEx.is_public ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
                 <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${editingEx.is_public ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
@@ -243,7 +237,7 @@ Descripcion: Mantén el torso recto...`}
   }
 
   return (
-    <div className="p-4 pb-24 min-h-screen text-zinc-100 relative">
+    <div className="p-4 pb-24 min-h-screen text-zinc-100 relative max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold">Ejercicios</h1>
         {!activeSession && (
@@ -264,7 +258,7 @@ Descripcion: Mantén el torso recto...`}
       {isLoading ? (
         <div className="text-center text-zinc-500 mt-10">Cargando catálogo...</div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredExercises.map((ex) => {
             const isOwner = ex.user_id === currentUser
             const isLegacyGlobal = !ex.user_id
@@ -298,7 +292,7 @@ Descripcion: Mantén el torso recto...`}
               </div>
             )
           })}
-          {filteredExercises.length === 0 && <div className="text-center text-zinc-500 mt-10">No se encontraron ejercicios.</div>}
+          {filteredExercises.length === 0 && <div className="text-center text-zinc-500 mt-10 md:col-span-2 lg:col-span-3">No se encontraron ejercicios.</div>}
         </div>
       )}
 

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell } from 'lucide-react'
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot } from 'lucide-react'
 import { fetchExercises, createStructuredRoutine } from '../lib/queries'
+import { COPY_AI_PROMPT } from './Settings'
 
 interface ParsedExercise {
   exercise_id: string
@@ -25,7 +26,6 @@ interface ParsedRoutine {
   errors: string[]
 }
 
-// Helper para ignorar tildes, mayúsculas y espacios al buscar ejercicios
 const normalize = (str: string) => 
   str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
 
@@ -39,7 +39,6 @@ export default function RoutineBuilder() {
     queryFn: fetchExercises,
   })
 
-  // Motor de Parsing en tiempo real
   const parsedResult = useMemo(() => {
     const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [] }
     if (!text.trim()) return result
@@ -68,7 +67,6 @@ export default function RoutineBuilder() {
         }
 
         const [exName, setsStr] = t.split('|').map(s => s.trim())
-        
         const ex = allExercises.find(e => normalize(e.name) === normalize(exName))
         if (!ex) {
            result.errors.push(`Línea ${i + 1}: El ejercicio "${exName}" no existe en tu catálogo.`)
@@ -96,7 +94,6 @@ export default function RoutineBuilder() {
     if (result.days.length === 0 && text.trim().length > 10) {
       result.errors.push('No has definido ningún día. Usa "Día: Nombre del día"')
     }
-
     return result
   } , [text, allExercises])
 
@@ -110,25 +107,17 @@ export default function RoutineBuilder() {
   })
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24">
-      {/* Cabecera */}
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 pb-24 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <button onClick={() => navigate('/routines')} className="text-zinc-400 p-2 bg-zinc-900 rounded-xl">
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold">Importador Estructurado</h1>
-        
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || parsedResult.errors.length > 0 || parsedResult.days.length === 0}
-          className="bg-zinc-800 text-zinc-100 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50 active:scale-95 transition-transform"
-          aria-label="Guardar"
-        >
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || parsedResult.errors.length > 0 || parsedResult.days.length === 0} className="bg-zinc-800 text-zinc-100 p-2 rounded-xl flex items-center gap-2 font-bold disabled:opacity-50 active:scale-95 transition-transform" aria-label="Guardar">
           <Save size={20} />
         </button>
       </div>
 
-      {/* Alertas */}
       {parsedResult.errors.length > 0 ? (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl mb-4 flex flex-col gap-2 text-sm">
           <div className="flex items-center gap-2 font-bold"><AlertTriangle size={18} /> Revisa estos errores:</div>
@@ -138,33 +127,30 @@ export default function RoutineBuilder() {
         </div>
       ) : text.trim().length > 10 ? (
         <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-2xl mb-4 flex items-center justify-between text-sm font-bold">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 size={18} /> Todo correcto.
-          </div>
-          <button 
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="bg-emerald-500 text-zinc-950 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
-          >
+          <div className="flex items-center gap-2"><CheckCircle2 size={18} /> Todo correcto.</div>
+          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-emerald-500 text-zinc-950 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform">
             <Play size={16} fill="currentColor" /> Guardar e Iniciar
           </button>
         </div>
       ) : null}
 
-      {/* Editor de Texto */}
       <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
-        <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
-          Pega aquí tu rutina. Usa "x" o "*" y añade "kg" al final si quieres. La vista previa se actualizará abajo.
-        </p>
+        <div className="flex items-start justify-between mb-3">
+          <p className="text-xs text-zinc-400 leading-relaxed pr-4">
+            Pega aquí tu rutina. Usa "x" o "*" y añade la unidad al final si quieres.
+          </p>
+          <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1.5 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform flex-shrink-0">
+            <Bot size={14} /> Prompt IA
+          </button>
+        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-48 text-sm font-mono resize-none leading-relaxed"
-          placeholder={`Rutina: Rutina Arnold\nCarpeta: Hipertrofia\nNotas: Alta frecuencia\n\nDía: Lunes - Pecho\nPress de Banca | 8x20, 7x18kg, 5x15\nAperturas | 10x10, 10X10`}
+          placeholder={`Rutina: Rutina Arnold\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca | 8x20, 7x18kg, 5x15\nAperturas | 10x10, 10X10`}
         />
       </div>
 
-      {/* ---> NUEVO: Vista Previa en Tiempo Real <--- */}
       {parsedResult.days.length > 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -175,16 +161,13 @@ export default function RoutineBuilder() {
             {parsedResult.days.map((day, dIdx) => (
               <div key={dIdx} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
                 <h3 className="text-lg font-bold text-emerald-500 mb-3 pb-2 border-b border-zinc-800/50">{day.name}</h3>
-                
                 <div className="flex flex-col gap-2">
                   {day.exercises.map((ex, eIdx) => (
                     <div key={eIdx} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
                       <div>
                         <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
                         <p className="text-[11px] text-zinc-500 mt-1 uppercase tracking-wider font-medium">
-                          {ex.target_sets} series 
-                          <span className="text-zinc-600 mx-1">|</span> 
-                          {ex.config.sets_config.map(s => `${s.reps}x${s.weight || 0}`).join(', ')}
+                          {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => `${s.reps}x${s.weight || 0}`).join(', ')}
                         </p>
                       </div>
                     </div>
