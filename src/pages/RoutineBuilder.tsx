@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Save, AlertTriangle, CheckCircle2, Play, Dumbbell, Bot, Info, ChevronDown, ChevronUp, Globe2, Lock } from 'lucide-react'
 import { fetchExercises, createStructuredRoutine, createExercise } from '../lib/queries'
 import { COPY_AI_PROMPT } from './Settings'
 import type { Exercise } from '../types/workout'
@@ -67,6 +67,7 @@ export default function RoutineBuilder() {
   const [text, setText] = useState('')
   const [exercisesText, setExercisesText] = useState('')
   const [showExDefs, setShowExDefs] = useState(false)
+  const [importAsPublic, setImportAsPublic] = useState(false) // <--- NUEVO ESTADO
 
   const { data: allExercises = [] } = useQuery({
     queryKey: ['exercises', 'catalog'],
@@ -77,7 +78,6 @@ export default function RoutineBuilder() {
     const result: ParsedRoutine = { name: 'Nueva Rutina', folder: '', notes: '', days: [], errors: [], newExercisesCount: 0 }
     if (!text.trim()) return result
 
-    // Memoria volátil para no contar el mismo ejercicio nuevo 2 veces en el contador visual
     const uniqueNewEx = new Set<string>()
 
     const lines = text.split('\n')
@@ -170,12 +170,9 @@ export default function RoutineBuilder() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // 1. Extraer definiciones manuales opcionales
       const defs = parseExercisesText(exercisesText);
       const defMap = new Map(defs.map(d => [normalize(d.name!), d]));
-
-      // 2. Diccionario para evitar crear el mismo ejercicio 2 veces en Supabase
-      const newExMap = new Map<string, string>(); // normName -> supabase_id
+      const newExMap = new Map<string, string>(); 
 
       const daysToSave = [...parsedResult.days]
       
@@ -193,7 +190,7 @@ export default function RoutineBuilder() {
                    muscle_group: manualDef?.muscle_group || 'Otro', 
                    description: manualDef?.description || '',
                    image_url: manualDef?.image_url || '',
-                   is_public: false 
+                   is_public: importAsPublic // <--- Usa la configuración de visibilidad
                  });
                  ex.exercise_id = createdEx.id;
                  newExMap.set(norm, createdEx.id);
@@ -214,7 +211,7 @@ export default function RoutineBuilder() {
                          muscle_group: manualDef?.muscle_group || 'Otro', 
                          description: manualDef?.description || '',
                          image_url: manualDef?.image_url || '',
-                         is_public: false 
+                         is_public: importAsPublic // <--- Usa la configuración de visibilidad
                        });
                        altIds.push(createdAlt.id);
                        newExMap.set(normAlt, createdAlt.id);
@@ -290,20 +287,53 @@ export default function RoutineBuilder() {
         />
       </div>
 
-      {/* ---> NUEVO: Caja opcional para inyectar detalles a los ejercicios nuevos <--- */}
       {parsedResult.newExercisesCount > 0 && (
         <div className="mb-6">
-          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1">
+          <button onClick={() => setShowExDefs(!showExDefs)} className="text-xs text-emerald-500 font-bold mb-2 flex items-center gap-1 bg-emerald-500/10 px-3 py-2 rounded-lg active:scale-95 transition-all">
             {showExDefs ? <ChevronUp size={14}/> : <ChevronDown size={14}/>} 
             Añadir grupo muscular/imágenes a los ejercicios nuevos (Opcional)
           </button>
+          
           {showExDefs && (
-            <textarea
-              value={exercisesText}
-              onChange={(e) => setExercisesText(e.target.value)}
-              className="w-full bg-zinc-950 border border-emerald-500/30 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-32 text-sm font-mono resize-none leading-relaxed"
-              placeholder={`Nombre: Ejercicio Inventado\nGrupo: Pecho\nDescripcion: Se hace así...`}
-            />
+            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              
+              <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4 flex items-center justify-between">
+                <div className="pr-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    {importAsPublic ? <Globe2 size={16} className="text-emerald-500" /> : <Lock size={16} className="text-blue-400" />}
+                    <p className="font-bold text-zinc-100">Visibilidad</p>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    {importAsPublic ? 'Todos verán los ejercicios nuevos en su catálogo.' : 'Solo tú podrás ver y usar los ejercicios nuevos.'}
+                  </p>
+                </div>
+                <button onClick={() => setImportAsPublic(!importAsPublic)} className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${importAsPublic ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                  <div className={`absolute top-1 left-1 bg-zinc-950 w-4 h-4 rounded-full transition-transform ${importAsPublic ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 mb-4">
+                <div className="flex items-start justify-between mb-2">
+                  <h2 className="text-sm font-bold text-emerald-500">Formato requerido:</h2>
+                  <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform">
+                    <Bot size={12} /> Prompt IA
+                  </button>
+                </div>
+                <pre className="text-[10px] text-zinc-300 bg-zinc-950 p-3 rounded-xl overflow-x-auto border border-zinc-800">
+{`Nombre: Sentadilla Búlgara
+Grupo: Piernas
+Imagen: https://link-al-gif.com/img.gif
+Descripcion: Mantén el torso recto...`}
+                </pre>
+              </div>
+              
+              <textarea
+                value={exercisesText}
+                onChange={(e) => setExercisesText(e.target.value)}
+                className="w-full bg-zinc-950 border border-emerald-500/30 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-48 text-sm font-mono resize-none leading-relaxed"
+                placeholder={`Pega las definiciones de tus ejercicios nuevos aquí...`}
+              />
+            </div>
           )}
         </div>
       )}
