@@ -14,8 +14,9 @@ import RoutineBuilder from './pages/RoutineBuilder'
 import SharedRoutine from './pages/SharedRoutine'
 import RoutineEditor from './pages/RoutineEditor'
 import SessionEditor from './pages/SessionEditor'
-import SessionDetails from './pages/SessionDetails' // <-- NUEVO
+import SessionDetails from './pages/SessionDetails'
 import SettingsPage from './pages/Settings'
+import Analytics from './pages/Analytics' // <-- NUEVA PÁGINA
 
 const Profile = () => {
   const navigate = useNavigate()
@@ -64,13 +65,14 @@ export default function App() {
           <Route path="/" element={<Feed />} />
           <Route path="/routines" element={<Routines />} />
           <Route path="/exercises" element={<Exercises />} />
+          <Route path="/analytics" element={<Analytics />} /> {/* <-- NUEVA RUTA */}
           <Route path="/profile" element={<Profile />} />
         </Route>
         
         <Route path="/workout" element={<ProtectedRoute session={session}><Workout /></ProtectedRoute>} />
         <Route path="/routines/new" element={<ProtectedRoute session={session}><RoutineBuilder /></ProtectedRoute>} />
         <Route path="/routines/:id/edit" element={<ProtectedRoute session={session}><RoutineEditor /></ProtectedRoute>} />
-        <Route path="/session/:id" element={<ProtectedRoute session={session}><SessionDetails /></ProtectedRoute>} /> {/* <-- NUEVA RUTA */}
+        <Route path="/session/:id" element={<ProtectedRoute session={session}><SessionDetails /></ProtectedRoute>} />
         <Route path="/session/:id/edit" element={<ProtectedRoute session={session}><SessionEditor /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute session={session}><SettingsPage /></ProtectedRoute>} />
 
