@@ -13,20 +13,22 @@ Rutina: [Nombre de la Rutina]
 Carpeta: [Nombre de la Carpeta o Categoría opcional]
 Notas: [Cualquier indicación general]
 
-Día: [Nombre del Día 1]
-[Nombre Ejercicio 1] | [Series]x[Reps]
-[Nombre Ejercicio 2] | [Series]x[Reps], [Series]x[Reps]
+Día: [Nombre del Día]
+[Nombre Ejercicio] | [Series]x[Reps]
+[Nombre Ejercicio] | [Series]x[Reps] @ [Peso opcional]
+[Nombre Ejercicio] | [Reps]@[Peso], [Reps]@[Peso]
 
 Ejemplo de Rutina:
 Rutina: Fuerza Total
 Carpeta: Powerlifting
-Notas: Descansar 3 min entre series.
+Notas: Descansar 3 min entre series pesadas.
 
 Día: Lunes - Pecho
-Press de Banca | 4x5, 1x3
+Press de Banca | 4x5 @ 80
 Fondos | 3x10
+Aperturas | 12@10, 10@12, 8@15
 
-Para crear EJERCICIOS sueltos para mi catálogo, usa este formato (separa cada ejercicio con doble salto de línea):
+Para crear EJERCICIOS sueltos para mi catálogo, usa este formato (separa cada uno con doble salto de línea):
 Nombre: [Nombre]
 Grupo: [Músculo]
 Imagen: [URL]

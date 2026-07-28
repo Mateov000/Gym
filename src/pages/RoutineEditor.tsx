@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-// ---> AÑADIMOS deleteRoutine A LA IMPORTACIÓN <---
 import { fetchRoutineById, fetchExercises, updateRoutine, deleteRoutine } from '../lib/queries'
 import { Trash2, Plus, ArrowLeft, Save } from 'lucide-react'
 
@@ -10,7 +9,6 @@ export default function RoutineEditor() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  // ---> NUEVO: Estado para la confirmación visual de borrado <---
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const { data: routine, isLoading } = useQuery({
@@ -41,6 +39,9 @@ export default function RoutineEditor() {
           exercise_id: ex.exercise_id,
           target_sets: ex.target_sets,
           target_reps: ex.target_reps,
+          // Extraemos el peso del config (si lo tiene)
+          weight: ex.config?.sets_config?.[0]?.weight || '',
+          config: ex.config // Guardamos la config original por si tiene otras cosas
         })),
       }))
       setDays(mappedDays)
@@ -48,7 +49,23 @@ export default function RoutineEditor() {
   }, [routine])
 
   const saveMutation = useMutation({
-    mutationFn: () => updateRoutine(id!, name, notes, folder, days),
+    mutationFn: () => {
+      // Formateamos los días para inyectar el peso en el config
+      const formattedDays = days.map(day => ({
+        ...day,
+        exercises: day.exercises.map((ex: any) => ({
+          ...ex,
+          config: {
+            ...(ex.config || {}),
+            sets_config: Array(ex.target_sets).fill(null).map(() => ({
+              reps: ex.target_reps,
+              weight: parseFloat(ex.weight) || 0
+            }))
+          }
+        }))
+      }))
+      return updateRoutine(id!, name, notes, folder, formattedDays)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] })
       navigate('/routines')
@@ -56,7 +73,6 @@ export default function RoutineEditor() {
     onError: (err: any) => alert(`Error al guardar: ${err.message}`),
   })
 
-  // ---> NUEVO: Mutación para borrar la rutina <---
   const deleteMutation = useMutation({
     mutationFn: () => deleteRoutine(id!),
     onSuccess: () => {
@@ -77,6 +93,8 @@ export default function RoutineEditor() {
       exercise_id: allExercises[0].id,
       target_sets: 3,
       target_reps: 10,
+      weight: '',
+      config: {}
     })
     setDays(newDays)
   }
@@ -120,84 +138,44 @@ export default function RoutineEditor() {
 
       <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
         <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Nombre de la Rutina</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
-        />
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4" />
         
         <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Carpeta (Opcional)</label>
-        <input
-          type="text"
-          placeholder="Ej: Hipertrofia, Pierna, Viajes..."
-          value={folder}
-          onChange={(e) => setFolder(e.target.value)}
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4"
-        />
+        <input type="text" placeholder="Ej: Hipertrofia, Pierna, Viajes..." value={folder} onChange={(e) => setFolder(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors mb-4" />
 
         <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Notas u Objetivo</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors resize-none h-24"
-        />
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 outline-none focus:border-emerald-500 transition-colors resize-none h-24" />
       </div>
 
       {days.map((day, dIdx) => (
         <div key={dIdx} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 mb-4">
           <div className="flex justify-between items-center mb-4">
-            <input
-              type="text"
-              value={day.name}
-              onChange={(e) => {
-                const newDays = [...days]
-                newDays[dIdx].name = e.target.value
-                setDays(newDays)
-              }}
-              className="bg-transparent text-lg font-bold text-emerald-500 border-b border-zinc-700 outline-none w-1/2 focus:border-emerald-400"
-            />
-            <button onClick={() => removeDay(dIdx)} className="text-red-500 p-2 bg-red-500/10 rounded-lg">
-              <Trash2 size={16} />
-            </button>
+            <input type="text" value={day.name} onChange={(e) => { const newDays = [...days]; newDays[dIdx].name = e.target.value; setDays(newDays) }} className="bg-transparent text-lg font-bold text-emerald-500 border-b border-zinc-700 outline-none w-1/2 focus:border-emerald-400" />
+            <button onClick={() => removeDay(dIdx)} className="text-red-500 p-2 bg-red-500/10 rounded-lg"><Trash2 size={16} /></button>
           </div>
 
           <div className="flex flex-col gap-3 mb-4">
             {day.exercises.map((ex: any, eIdx: number) => (
-              <div key={eIdx} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl">
-                <div className="flex justify-between items-start gap-2 mb-3">
-                  <select
-                    value={ex.exercise_id}
-                    onChange={(e) => updateExercise(dIdx, eIdx, 'exercise_id', e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 text-sm rounded-lg p-2 outline-none text-zinc-200"
-                  >
-                    {allExercises.map((catEx: any) => (
-                      <option key={catEx.id} value={catEx.id}>{catEx.name}</option>
-                    ))}
+              <div key={eIdx} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex flex-col gap-3">
+                <div className="flex justify-between items-start gap-2">
+                  <select value={ex.exercise_id} onChange={(e) => updateExercise(dIdx, eIdx, 'exercise_id', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 text-sm font-bold rounded-lg p-2 outline-none text-zinc-200">
+                    {allExercises.map((catEx: any) => <option key={catEx.id} value={catEx.id}>{catEx.name}</option>)}
                   </select>
-                  <button onClick={() => removeExercise(dIdx, eIdx)} className="text-zinc-500 hover:text-red-500 p-2">
-                    <Trash2 size={16} />
-                  </button>
+                  <button onClick={() => removeExercise(dIdx, eIdx)} className="text-zinc-500 hover:text-red-500 p-2"><Trash2 size={16} /></button>
                 </div>
                 
-                <div className="flex gap-4">
+                <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-[10px] text-zinc-500 uppercase">Series</label>
-                    <input
-                      type="number"
-                      value={ex.target_sets}
-                      onChange={(e) => updateExercise(dIdx, eIdx, 'target_sets', parseInt(e.target.value) || 0)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm"
-                    />
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Series</label>
+                    <input type="number" value={ex.target_sets} onChange={(e) => updateExercise(dIdx, eIdx, 'target_sets', parseInt(e.target.value) || 0)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm font-bold" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[10px] text-zinc-500 uppercase">Reps</label>
-                    <input
-                      type="number"
-                      value={ex.target_reps}
-                      onChange={(e) => updateExercise(dIdx, eIdx, 'target_reps', parseInt(e.target.value) || 0)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm"
-                    />
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Reps</label>
+                    <input type="number" value={ex.target_reps} onChange={(e) => updateExercise(dIdx, eIdx, 'target_reps', parseInt(e.target.value) || 0)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm font-bold" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold truncate block">Peso inicial</label>
+                    <input type="number" step="any" placeholder="-" value={ex.weight} onChange={(e) => updateExercise(dIdx, eIdx, 'weight', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center mt-1 outline-none focus:border-emerald-500 text-sm text-emerald-400 font-bold" />
                   </div>
                 </div>
               </div>
@@ -214,31 +192,20 @@ export default function RoutineEditor() {
         <Plus size={20} /> Añadir Día de Entrenamiento
       </button>
 
-      {/* ---> NUEVO: Botón final para eliminar rutina sin INP Issue <--- */}
       {showDeleteConfirm ? (
         <div className="flex flex-col gap-3 animate-in fade-in zoom-in duration-200 mt-12 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl">
           <p className="text-red-500 text-center font-bold text-sm">¿Seguro que quieres borrar esta rutina definitivamente?</p>
           <div className="flex gap-2">
-            <button
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
-              className="flex-1 bg-red-500 text-white font-bold p-3 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
-            >
+            <button onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="flex-1 bg-red-500 text-white font-bold p-3 rounded-xl active:scale-95 transition-transform disabled:opacity-50">
               {deleteMutation.isPending ? 'Borrando...' : 'Sí, borrar'}
             </button>
-            <button
-              onClick={() => setShowDeleteConfirm(false)}
-              className="flex-1 bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold p-3 rounded-xl active:scale-95 transition-transform"
-            >
+            <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold p-3 rounded-xl active:scale-95 transition-transform">
               Cancelar
             </button>
           </div>
         </div>
       ) : (
-        <button 
-          onClick={() => setShowDeleteConfirm(true)}
-          className="w-full flex items-center justify-center gap-2 py-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl font-bold active:scale-95 transition-transform mt-12"
-        >
+        <button onClick={() => setShowDeleteConfirm(true)} className="w-full flex items-center justify-center gap-2 py-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl font-bold active:scale-95 transition-transform mt-12">
           <Trash2 size={20} /> Eliminar Rutina
         </button>
       )}

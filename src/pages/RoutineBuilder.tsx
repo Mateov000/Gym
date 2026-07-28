@@ -73,18 +73,34 @@ export default function RoutineBuilder() {
            continue
         }
 
-        const setsArr = setsStr.split(',').map(s => s.trim())
-        const sets_config = setsArr.map(s => {
-           const parts = s.split(/[xX*]/)
-           const repsStr = parts[0] ? parts[0].replace(/[^0-9]/g, '') : ''
-           const weightStr = parts[1] ? parts[1].replace(/[^0-9.]/g, '') : ''
-           return { reps: parseInt(repsStr) || 10, weight: parseFloat(weightStr) || 0 }
-        })
+        // ---> NUEVO PARSER MÁS INTELIGENTE QUE ENTIENDE PESOS CON '@' <---
+        let target_sets = 0;
+        let sets_config: { reps: number; weight: number }[] = [];
+
+        // Buscamos formato simple: "4x10" o "4x10 @ 60"
+        const simpleMatch = setsStr.match(/^(\d+)\s*[xX*]\s*(\d+)(?:\s*@\s*(\d+(?:\.\d+)?))?/);
+        
+        if (simpleMatch && !setsStr.includes(',')) {
+            target_sets = parseInt(simpleMatch[1]);
+            const reps = parseInt(simpleMatch[2]);
+            const weight = simpleMatch[3] ? parseFloat(simpleMatch[3]) : 0;
+            sets_config = Array(target_sets).fill({ reps, weight });
+        } else {
+            // Buscamos formato por serie: "10@50, 8@55, 6@60" o simplemente "10, 8, 6"
+            const setsArr = setsStr.split(',').map(s => s.trim());
+            target_sets = setsArr.length;
+            sets_config = setsArr.map(s => {
+                const [repsStr, weightStr] = s.split('@');
+                const reps = parseInt(repsStr.replace(/[^0-9]/g, '')) || 10;
+                const weight = weightStr ? parseFloat(weightStr.replace(/[^0-9.]/g, '')) : 0;
+                return { reps, weight };
+            });
+        }
 
         currentDay.exercises.push({
            exercise_id: ex.id,
            originalName: ex.name,
-           target_sets: sets_config.length,
+           target_sets,
            target_reps: sets_config[0]?.reps || 10,
            config: { sets_config }
         })
@@ -137,7 +153,7 @@ export default function RoutineBuilder() {
       <div className="bg-zinc-900 p-4 rounded-2xl mb-6">
         <div className="flex items-start justify-between mb-3">
           <p className="text-xs text-zinc-400 leading-relaxed pr-4">
-            Pega aquí tu rutina. Usa "x" o "*" y añade la unidad al final si quieres.
+            Pega aquí tu rutina. Usa "x" o "*" y añade "@ peso" al final si quieres indicar un peso inicial (Ej: 4x10 @ 60).
           </p>
           <button onClick={COPY_AI_PROMPT} className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-1.5 rounded-lg flex items-center gap-1.5 font-bold active:scale-95 transition-transform flex-shrink-0">
             <Bot size={14} /> Prompt IA
@@ -147,7 +163,7 @@ export default function RoutineBuilder() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-zinc-200 outline-none focus:border-emerald-500 h-48 text-sm font-mono resize-none leading-relaxed"
-          placeholder={`Rutina: Rutina Arnold\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca | 8x20, 7x18kg, 5x15\nAperturas | 10x10, 10X10`}
+          placeholder={`Rutina: Fuerza y Volumen\nCarpeta: Hipertrofia\n\nDía: Lunes - Pecho\nPress de Banca | 4x8 @ 60\nAperturas | 12@10, 10@12.5, 8@15`}
         />
       </div>
 
@@ -167,7 +183,7 @@ export default function RoutineBuilder() {
                       <div>
                         <p className="font-bold text-sm text-zinc-100">{ex.originalName}</p>
                         <p className="text-[11px] text-zinc-500 mt-1 uppercase tracking-wider font-medium">
-                          {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => `${s.reps}x${s.weight || 0}`).join(', ')}
+                          {ex.target_sets} series <span className="text-zinc-600 mx-1">|</span> {ex.config.sets_config.map(s => s.weight > 0 ? `${s.reps}@${s.weight}` : `${s.reps}`).join(', ')}
                         </p>
                       </div>
                     </div>
