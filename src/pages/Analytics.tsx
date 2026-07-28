@@ -122,7 +122,8 @@ export default function Analytics() {
 
   // Setear un ejercicio por defecto para el gráfico 1RM cuando cargan los datos
   if (!selectedExId && exercises.length > 0 && e1rmData.length === 0) {
-    const firstExDone = sessions.find(s => s.workout_sets?.length)?.[0]
+    // ---- AQUÍ ESTÁ LA CORRECCIÓN MÁGICA ----
+    const firstExDone = sessions.find(s => s.workout_sets && s.workout_sets.length > 0)?.workout_sets?.[0]
     if (firstExDone) setSelectedExId(firstExDone.exercise_id)
   }
 
