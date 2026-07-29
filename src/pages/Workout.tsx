@@ -479,8 +479,8 @@ export default function Workout() {
             </button>
             {showTimeEditor && (
               <div className="absolute top-full right-0 mt-2 bg-zinc-800 border border-zinc-700 p-2 rounded-xl shadow-2xl flex flex-col gap-2 w-32 z-50">
-                <button onClick={() => { adjustSessionStartTime(-5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">+ 5 mins</button>
-                <button onClick={() => { adjustSessionStartTime(5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">- 5 mins</button>
+                <button onClick={() => { adjustSessionStartTime(-5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">- 5 mins</button>
+                <button onClick={() => { adjustSessionStartTime(5); setShowTimeEditor(false) }} className="bg-zinc-900 text-zinc-300 text-xs font-bold py-2 rounded-lg active:scale-95">+ 5 mins</button>
               </div>
             )}
           </div>
