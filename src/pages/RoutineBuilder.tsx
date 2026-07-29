@@ -309,8 +309,8 @@ export default function RoutineBuilder() {
                    muscle_group: manualDef?.muscle_group || 'Otro', 
                    description: manualDef?.description || '',
                    image_url: manualDef?.image_url || '',
-                   config: manualDef?.config || {}, // <--- Configuración completa (equipamiento, barra, etc.)
-                   is_public: manualDef?.is_public ?? importAsPublic // <--- Visibilidad personalizada
+                   config: manualDef?.config || {}, // <--- CORREGIDO: Se inyecta el config completo parseado
+                   is_public: manualDef?.is_public ?? importAsPublic 
                  });
                  ex.exercise_id = createdEx.id;
                  newExMap.set(norm, createdEx.id);
@@ -335,7 +335,7 @@ export default function RoutineBuilder() {
                          muscle_group: manualDef?.muscle_group || 'Otro', 
                          description: manualDef?.description || '',
                          image_url: manualDef?.image_url || '',
-                         config: manualDef?.config || {},
+                         config: manualDef?.config || {}, // <--- CORREGIDO: Config completo para alternativas
                          is_public: manualDef?.is_public ?? importAsPublic
                        });
                        altIds.push(createdAlt.id);
