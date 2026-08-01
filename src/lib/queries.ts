@@ -86,6 +86,7 @@ export async function fetchWorkoutHistory(limit = 30): Promise<WorkoutSessionWit
 
 interface FinishWorkoutInput {
   startTime: string
+  endTime?: string // <--- NUEVO
   workoutExercises: WorkoutExercise[]
   sessionNotes?: string 
   sessionOptions?: WorkoutSessionOptions
@@ -107,7 +108,7 @@ async function savePrEvents(userId: string, sessionId: string, candidates: Exist
   if (eventsError && !isMissingTableError(eventsError)) throw eventsError
 }
 
-export async function finishWorkoutSession({ startTime, workoutExercises, sessionNotes, sessionOptions }: FinishWorkoutInput): Promise<void> {
+export async function finishWorkoutSession({ startTime, endTime, workoutExercises, sessionNotes, sessionOptions }: FinishWorkoutInput): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No hay usuario autenticado')
 
@@ -116,7 +117,7 @@ export async function finishWorkoutSession({ startTime, workoutExercises, sessio
     .insert({
       user_id: user.id,
       start_time: startTime,
-      end_time: new Date().toISOString(),
+      end_time: endTime || new Date().toISOString(), // <--- NUEVO: Respeta el endTime si se lo enviamos
       notes: sessionNotes || null, 
       routine_id: sessionOptions?.routine_id ?? null,
       routine_day_id: sessionOptions?.routine_day_id ?? null,

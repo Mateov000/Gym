@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw, Building2 } from 'lucide-react'
+import { ChevronDown, Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw, Building2 } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
@@ -387,9 +387,9 @@ function getSwapCandidates(exercise: Exercise, catalog: Exercise[]) {
 }
 
 export default function Workout() {
-  const { activeSession, workoutExercises, replaceExercise, clearSession, sessionNotes, setSessionNotes, adjustSessionStartTime, reorderExercises } = useWorkoutStore()
+  const { activeSession, workoutExercises, replaceExercise, clearSession, sessionNotes, setSessionNotes, adjustSessionStartTime, reorderExercises, addPendingSession } = useWorkoutStore()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  // const queryClient = useQueryClient() <-- Ya no lo necesitamos aquí
   useWakeLock(!!activeSession)
 
   const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
@@ -415,28 +415,21 @@ export default function Workout() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   }
 
-  const finishWorkoutMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeSession) return
-      await finishWorkoutSession({
-        startTime: activeSession.start_time,
-        workoutExercises,
-        sessionNotes,
-        sessionOptions: { routine_id: activeSession.routine_id, routine_day_id: activeSession.routine_day_id, disable_prs: activeSession.disable_prs, config: activeSession.config },
-      })
-    },
-    onSuccess: async () => { 
-      // 1. Navegamos primero
-      navigate('/') 
-      // 2. Limpiamos la sesión después para no romper los hooks de esta pantalla
-      clearSession(); 
-      await queryClient.invalidateQueries({ queryKey: ['workout-history'] }); 
-    },
-    onError: (error: any) => alert(`Error al guardar: ${error.message}`),
-  })
+  // ---> NUEVO: Guardado Local Optimista (Instantáneo) <---
+  const handleFinish = () => {
+    if (!activeSession) return
+    addPendingSession({
+      id: crypto.randomUUID(),
+      startTime: activeSession.start_time,
+      endTime: new Date().toISOString(),
+      workoutExercises,
+      sessionNotes,
+      sessionOptions: { routine_id: activeSession.routine_id, routine_day_id: activeSession.routine_day_id, disable_prs: activeSession.disable_prs, config: activeSession.config }
+    })
+    clearSession()
+    navigate('/')
+  }
 
-  // ---- LA MAGIA DE LA PANTALLA BLANCA ----
-  // Movemos todos los Hooks ARRIBA del `return`
   const groups = useMemo(() => {
     const result: WorkoutExercise[][] = [];
     let current: WorkoutExercise[] = [];
@@ -460,19 +453,25 @@ export default function Workout() {
     reorderExercises(newGroups.flat());
   }
 
-  // Y ahora sí, si no hay sesión, abortamos renderizado
   if (!activeSession) return <Navigate to="/exercises" replace />
 
   return (
     <div className="p-3 sm:p-4 relative min-h-[80vh] pb-40 max-w-2xl mx-auto">
       
-      {/* ---> LA BARRA FLOTANTE CON EL RELOJ DE DESCANSO DENTRO <--- */}
       <div className="flex flex-col mb-6 bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg sticky top-2 z-40 transition-all duration-300">
         <div className="flex justify-between items-center">
-          <div className="flex-1 min-w-0 pr-4">
-            <h1 className="text-xl font-bold text-zinc-100 truncate">Entrenamiento</h1>
-            {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
+          
+          {/* ---> NUEVO: BOTÓN DE MINIMIZAR <--- */}
+          <div className="flex-1 min-w-0 pr-4 flex items-center gap-3">
+            <button onClick={() => navigate('/')} className="p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-400 active:scale-95 flex-shrink-0">
+              <ChevronDown size={20} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-zinc-100 truncate">Entrenamiento</h1>
+              {(activeSession as any).name && <p className="text-xs text-emerald-500 font-bold mt-0.5 truncate">{(activeSession as any).name}</p>}
+            </div>
           </div>
+          
           <div className="relative">
             <button onClick={() => setShowTimeEditor(!showTimeEditor)} className="flex items-center gap-2 text-zinc-400 font-mono font-bold bg-zinc-950 px-3 py-2 rounded-xl border border-zinc-800 active:scale-95 transition-transform">
               <Timer size={16} /> {formatTime(elapsed)}
@@ -486,7 +485,6 @@ export default function Workout() {
           </div>
         </div>
         
-        {/* Aquí vive el reloj de descanso ahora */}
         <RestTimer />
       </div>
 
@@ -527,7 +525,8 @@ export default function Workout() {
 
       <div className="flex flex-col gap-3 mt-6">
         <button onClick={() => navigate('/exercises')} className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold p-4 rounded-xl active:bg-zinc-800 transition-colors">+ Añadir otro ejercicio</button>
-        <button onClick={() => finishWorkoutMutation.mutate()} disabled={finishWorkoutMutation.isPending} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(16,185,129,0.2)]">{finishWorkoutMutation.isPending ? 'Guardando...' : 'Terminar Entrenamiento'}</button>
+        {/* ---> EL BOTÓN AHORA ES INSTANTÁNEO <--- */}
+        <button onClick={handleFinish} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(16,185,129,0.2)]">Terminar Entrenamiento</button>
         <button onClick={() => { if(window.confirm('¿Abandonar? Se perderán las series de hoy.')) { clearSession(); navigate('/') } }} className="w-full text-red-500 font-bold p-4 rounded-xl active:scale-95 transition-transform bg-transparent">Abandonar Entrenamiento</button>
       </div>
     </div>

@@ -16,7 +16,7 @@ import RoutineEditor from './pages/RoutineEditor'
 import SessionEditor from './pages/SessionEditor'
 import SessionDetails from './pages/SessionDetails'
 import SettingsPage from './pages/Settings'
-import Analytics from './pages/Analytics' // <-- NUEVA PÁGINA
+import Analytics from './pages/Analytics' 
 
 const Profile = () => {
   const navigate = useNavigate()
@@ -35,14 +35,29 @@ const Profile = () => {
   )
 }
 
-function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
-  if (!session) return <Auth />
+// ---> NUEVO: Si allowOffline es true, puenteamos el login
+function ProtectedRoute({ session, allowOffline, children }: { session: Session | null; allowOffline: boolean; children: React.ReactNode }) {
+  if (!session && !allowOffline) return <Auth />
   return <>{children}</>
 }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
+  
+  // ---> NUEVO: Detección estricta de internet en tiempo real
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+
+  useEffect(() => {
+    const handleOffline = () => setIsOffline(true)
+    const handleOnline = () => setIsOffline(false)
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -61,20 +76,21 @@ export default function App() {
       <Routes>
         <Route path="/routines/shared/:id" element={<SharedRoutine />} />
 
-        <Route element={<ProtectedRoute session={session}><Layout /></ProtectedRoute>}>
+        {/* Pasamos isOffline a todas las rutas protegidas */}
+        <Route element={<ProtectedRoute session={session} allowOffline={isOffline}><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Feed />} />
           <Route path="/routines" element={<Routines />} />
           <Route path="/exercises" element={<Exercises />} />
-          <Route path="/analytics" element={<Analytics />} /> {/* <-- NUEVA RUTA */}
+          <Route path="/analytics" element={<Analytics />} /> 
           <Route path="/profile" element={<Profile />} />
         </Route>
         
-        <Route path="/workout" element={<ProtectedRoute session={session}><Workout /></ProtectedRoute>} />
-        <Route path="/routines/new" element={<ProtectedRoute session={session}><RoutineBuilder /></ProtectedRoute>} />
-        <Route path="/routines/:id/edit" element={<ProtectedRoute session={session}><RoutineEditor /></ProtectedRoute>} />
-        <Route path="/session/:id" element={<ProtectedRoute session={session}><SessionDetails /></ProtectedRoute>} />
-        <Route path="/session/:id/edit" element={<ProtectedRoute session={session}><SessionEditor /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute session={session}><SettingsPage /></ProtectedRoute>} />
+        <Route path="/workout" element={<ProtectedRoute session={session} allowOffline={isOffline}><Workout /></ProtectedRoute>} />
+        <Route path="/routines/new" element={<ProtectedRoute session={session} allowOffline={isOffline}><RoutineBuilder /></ProtectedRoute>} />
+        <Route path="/routines/:id/edit" element={<ProtectedRoute session={session} allowOffline={isOffline}><RoutineEditor /></ProtectedRoute>} />
+        <Route path="/session/:id" element={<ProtectedRoute session={session} allowOffline={isOffline}><SessionDetails /></ProtectedRoute>} />
+        <Route path="/session/:id/edit" element={<ProtectedRoute session={session} allowOffline={isOffline}><SessionEditor /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute session={session} allowOffline={isOffline}><SettingsPage /></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

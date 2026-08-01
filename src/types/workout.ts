@@ -37,7 +37,6 @@ export interface ExerciseConfig {
   sets_config?: { reps: number; weight: number }[]
   routine_alternatives?: string[] 
   uses_barbell?: boolean
-  // ---> NUEVO: Equipamiento <---
   equipment?: 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'smith' | 'kettlebell' | 'other'
 }
 
@@ -86,4 +85,14 @@ export interface WorkoutSessionWithSets {
   routine_id?: string | null
   routine_day_id?: string | null
   workout_sets: PersistedWorkoutSet[] | null
+}
+
+// ---> NUEVO: Cola de sincronización local <---
+export interface PendingSession {
+  id: string;
+  startTime: string;
+  endTime: string;
+  workoutExercises: WorkoutExercise[];
+  sessionNotes: string;
+  sessionOptions: WorkoutSessionOptions;
 }

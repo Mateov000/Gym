@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { WorkoutSessionOptions, WorkoutExercise, Exercise, LoggedSet } from '../types/workout'
+import type { WorkoutSessionOptions, WorkoutExercise, Exercise, LoggedSet, PendingSession } from '../types/workout'
 
 interface WorkoutStore {
   activeSession: (WorkoutSessionOptions & { start_time: string; name?: string }) | null
@@ -9,6 +9,11 @@ interface WorkoutStore {
   restEndsAt: number | null
   isResting: boolean 
   
+  // ---> NUEVO: Memoria de Sincronización <---
+  pendingSync: PendingSession[]
+  addPendingSession: (session: PendingSession) => void
+  removePendingSession: (id: string) => void
+
   startSession: (options: WorkoutSessionOptions) => void
   startRoutine: (routine: any, day: any) => void
   adjustSessionStartTime: (deltaMinutes: number) => void 
@@ -39,6 +44,11 @@ export const useWorkoutStore = create<WorkoutStore>()(
       restEndsAt: null,
       isResting: false,
 
+      // ---> NUEVO: Funciones de Sincronización <---
+      pendingSync: [],
+      addPendingSession: (session) => set((state) => ({ pendingSync: [...state.pendingSync, session] })),
+      removePendingSession: (id) => set((state) => ({ pendingSync: state.pendingSync.filter(s => s.id !== id) })),
+
       startSession: (options) =>
         set({
           activeSession: { ...options, start_time: new Date().toISOString() },
@@ -66,7 +76,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
                 set_type: 'normal',
                 default_reps: targetReps,
                 default_weight: 0,
-                config: rx.config || null // <--- SOLUCIÓN: Ahora arrastramos el config (y las alternativas) a la sesión
+                config: rx.config || null
               }
             }
           })

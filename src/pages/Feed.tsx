@@ -1,9 +1,9 @@
-import { useEffect } from 'react'
-import { Dumbbell, Calendar, Clock, Play, Edit2, Timer } from 'lucide-react' 
+import { useEffect, useState } from 'react'
+import { Dumbbell, Calendar, Clock, Play, Edit2, Timer, CloudOff, RefreshCw } from 'lucide-react' 
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../store/useWorkoutStore'
-import { useQuery } from '@tanstack/react-query'
-import { fetchWorkoutHistory } from '../lib/queries'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchWorkoutHistory, finishWorkoutSession } from '../lib/queries'
 import type { WorkoutSessionWithSets } from '../types/workout'
 
 function formatDuration(start: string, end?: string | null) {
@@ -22,7 +22,47 @@ function formatDuration(start: string, end?: string | null) {
 
 export default function Feed() {
   const navigate = useNavigate()
-  const { activeSession, workoutExercises } = useWorkoutStore()
+  const queryClient = useQueryClient()
+  const { activeSession, workoutExercises, pendingSync, removePendingSession } = useWorkoutStore()
+
+  // ---> NUEVO: Detección de conexión y Sincronizador <---
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+
+  useEffect(() => {
+    const handleOffline = () => setIsOffline(true)
+    const handleOnline = () => setIsOffline(false)
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+       window.removeEventListener('offline', handleOffline)
+       window.removeEventListener('online', handleOnline)
+    }
+  }, [])
+
+  useEffect(() => {
+    const syncPending = async () => {
+      if (pendingSync.length === 0 || isOffline || isSyncing) return
+      setIsSyncing(true)
+      for (const session of pendingSync) {
+        try {
+          await finishWorkoutSession({
+            startTime: session.startTime,
+            endTime: session.endTime,
+            workoutExercises: session.workoutExercises,
+            sessionNotes: session.sessionNotes,
+            sessionOptions: session.sessionOptions
+          })
+          removePendingSession(session.id)
+        } catch (err: any) {
+          console.error("Error sincronizando", err)
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['workout-history'] })
+      setIsSyncing(false)
+    }
+    syncPending()
+  }, [pendingSync, isOffline, isSyncing, removePendingSession, queryClient])
 
   const { data: sessions = [], isLoading } = useQuery<WorkoutSessionWithSets[]>({
     queryKey: ['workout-history'],
@@ -43,6 +83,18 @@ export default function Feed() {
   return (
     <div className="p-6 pb-24 min-h-screen flex flex-col">
       <h1 className="text-3xl font-bold text-zinc-100 mb-6">Tu Progreso</h1>
+
+      {/* ---> NUEVO: Banner Informativo Offline <--- */}
+      {pendingSync.length > 0 && (
+        <div className={`border p-4 rounded-2xl mb-6 flex items-center gap-3 text-sm font-bold animate-in fade-in ${isOffline ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+          {isOffline ? <CloudOff size={20} className="flex-shrink-0" /> : <RefreshCw size={20} className="animate-spin flex-shrink-0" />}
+          <div>
+            {isOffline
+              ? `${pendingSync.length} entrenamiento(s) esperando conexión a internet para subirse a la nube.`
+              : `Sincronizando ${pendingSync.length} entrenamiento(s) con la nube...`}
+          </div>
+        </div>
+      )}
       
       {activeSession ? (
         <button onClick={() => navigate('/workout')} className="w-full bg-blue-500 text-zinc-950 font-bold text-lg p-4 rounded-xl mb-8 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
