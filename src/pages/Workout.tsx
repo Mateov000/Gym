@@ -7,11 +7,11 @@ import SmartStepper from '../components/SmartStepper'
 import CheckInButton from '../components/CheckInButton'
 import RestTimer from '../components/RestTimer'
 import PlateMath from '../components/PlateMath'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, finishWorkoutSession, updateRoutineExerciseSwap } from '../lib/queries'
+import { useQuery } from '@tanstack/react-query'
+import { fetchExercises, fetchWorkoutHistory, fetchExerciseHistory, updateRoutineExerciseSwap } from '../lib/queries'
 import type { Exercise, WorkoutExercise, WorkoutSessionWithSets } from '../types/workout'
 import { resolveExerciseConfig } from '../lib/configCascade'
-import { ChevronDown, Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw, Building2 } from 'lucide-react'
+import { Trash2, Save, Timer, CheckCircle2, Check, EyeOff, Image, Dumbbell, X, AlignLeft, MoreVertical, History, ArrowUp, ArrowDown, Zap, Star, RefreshCw, Building2, ChevronDown } from 'lucide-react'
 
 // --- CONVERSOR MATEMÁTICO ---
 function convertWeight(value: number, fromUnit: string, toUnit: string, equivalencies: any[]): number {
@@ -262,7 +262,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
       {showSwapList && (
         <div className="mt-4 border-t border-zinc-800 pt-4 animate-in fade-in">
           
-          {/* ---> NUEVO: TOGGLE MODO HOTEL <--- */}
           <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/20 p-3 rounded-xl mb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-500"><Building2 size={16} /></div>
@@ -279,7 +278,6 @@ const ExerciseTracker = ({ workoutEx, allExercises, defaultsMap, learnedSwaps, s
           <p className="text-xs text-zinc-500 mb-2">Reemplazar por:</p>
           <div className="flex flex-wrap gap-2">
             
-            {/* LÓGICA DE FILTRADO CONDICIONAL */}
             {(() => {
               const isHotelFriendly = (c: Exercise) => !hotelMode || !['barbell', 'smith'].includes(c.config?.equipment || 'other');
               
@@ -389,7 +387,6 @@ function getSwapCandidates(exercise: Exercise, catalog: Exercise[]) {
 export default function Workout() {
   const { activeSession, workoutExercises, replaceExercise, clearSession, sessionNotes, setSessionNotes, adjustSessionStartTime, reorderExercises, addPendingSession } = useWorkoutStore()
   const navigate = useNavigate()
-  // const queryClient = useQueryClient() <-- Ya no lo necesitamos aquí
   useWakeLock(!!activeSession)
 
   const { data: recentSessions = [] } = useQuery({ queryKey: ['workout-history', 'smart-defaults'], queryFn: () => fetchWorkoutHistory(20) })
@@ -415,7 +412,6 @@ export default function Workout() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   }
 
-  // ---> NUEVO: Guardado Local Optimista (Instantáneo) <---
   const handleFinish = () => {
     if (!activeSession) return
     addPendingSession({
@@ -461,7 +457,6 @@ export default function Workout() {
       <div className="flex flex-col mb-6 bg-zinc-900 p-4 rounded-2xl border border-zinc-800 shadow-lg sticky top-2 z-40 transition-all duration-300">
         <div className="flex justify-between items-center">
           
-          {/* ---> NUEVO: BOTÓN DE MINIMIZAR <--- */}
           <div className="flex-1 min-w-0 pr-4 flex items-center gap-3">
             <button onClick={() => navigate('/')} className="p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-400 active:scale-95 flex-shrink-0">
               <ChevronDown size={20} />
@@ -525,7 +520,6 @@ export default function Workout() {
 
       <div className="flex flex-col gap-3 mt-6">
         <button onClick={() => navigate('/exercises')} className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold p-4 rounded-xl active:bg-zinc-800 transition-colors">+ Añadir otro ejercicio</button>
-        {/* ---> EL BOTÓN AHORA ES INSTANTÁNEO <--- */}
         <button onClick={handleFinish} className="w-full bg-emerald-500 text-zinc-950 font-bold p-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(16,185,129,0.2)]">Terminar Entrenamiento</button>
         <button onClick={() => { if(window.confirm('¿Abandonar? Se perderán las series de hoy.')) { clearSession(); navigate('/') } }} className="w-full text-red-500 font-bold p-4 rounded-xl active:scale-95 transition-transform bg-transparent">Abandonar Entrenamiento</button>
       </div>
