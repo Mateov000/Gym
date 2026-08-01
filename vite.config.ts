@@ -9,8 +9,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // ---> NUEVO: Obligamos a la PWA a resolver todas las URLs en la app <---
       workbox: {
+        // ---> NUEVO: Fuerza a descargar TODO el HTML, CSS y JS al celular
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallback: '/index.html',
         navigateFallbackAllowlist: [/^(?!\/__).*/]
       },
