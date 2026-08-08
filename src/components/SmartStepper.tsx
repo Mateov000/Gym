@@ -1,4 +1,5 @@
 import { Minus, Plus } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 interface SmartStepperProps {
   label: string
@@ -9,9 +10,43 @@ interface SmartStepperProps {
 }
 
 export default function SmartStepper({ label, value, step, unit = '', onChange }: SmartStepperProps) {
+  const [localVal, setLocalVal] = useState(value.toString())
+
+  useEffect(() => {
+    // Solo sincroniza si el valor numérico es realmente distinto, 
+    // así no borra la coma o el punto mientras el usuario lo está escribiendo (ej: "10.")
+    const parsedLocal = parseFloat(localVal) || 0
+    if (parsedLocal !== value && !(localVal === '' && value === 0)) {
+      setLocalVal(value.toString())
+    }
+  }, [value, localVal])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value)
-    onChange(isNaN(val) ? 0 : val)
+    // Convierte comas a puntos automáticamente y elimina caracteres inválidos
+    let text = e.target.value.replace(',', '.')
+    text = text.replace(/[^0-9.]/g, '') 
+    
+    // Previene que se escriban múltiples puntos (ej: "10.5.2")
+    const parts = text.split('.')
+    if (parts.length > 2) {
+      text = parts[0] + '.' + parts.slice(1).join('')
+    }
+
+    setLocalVal(text)
+    
+    const parsed = parseFloat(text)
+    if (!isNaN(parsed)) {
+      onChange(parsed)
+    } else if (text === '') {
+      onChange(0)
+    }
+  }
+
+  const handleStep = (direction: 1 | -1) => {
+    const current = parseFloat(localVal) || 0
+    const next = Math.max(0, Number((current + step * direction).toFixed(2)))
+    setLocalVal(next.toString())
+    onChange(next)
   }
 
   return (
@@ -19,27 +54,25 @@ export default function SmartStepper({ label, value, step, unit = '', onChange }
       <span className="text-zinc-400 text-xs sm:text-sm font-medium mb-3 text-center truncate">{label}</span>
       <div className="flex items-center justify-between gap-1 sm:gap-2">
         <button 
-          onClick={() => onChange(Math.max(0, Number((value - step).toFixed(2))))}
+          onClick={() => handleStep(-1)}
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-emerald-500 active:scale-95 active:bg-zinc-700 transition-all flex-shrink-0"
         >
           <Minus size={24} />
         </button>
         
         <div className="flex flex-col items-center justify-center flex-1">
-          {/* ---> NUEVO: Input de texto libre para escribir rápidamente <--- */}
           <input 
-            type="number"
-            step="any"
-            value={value.toString()} 
+            type="text"
+            inputMode="decimal"
+            value={localVal} 
             onChange={handleInputChange}
             className="bg-transparent text-2xl sm:text-3xl font-bold text-zinc-100 w-full text-center outline-none [&::-webkit-inner-spin-button]:appearance-none appearance-none"
-            inputMode="decimal"
           />
           {unit && <span className="text-zinc-500 text-xs sm:text-sm truncate w-16 text-center">{unit}</span>}
         </div>
 
         <button 
-          onClick={() => onChange(Number((value + step).toFixed(2)))}
+          onClick={() => handleStep(1)}
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-emerald-500 active:scale-95 active:bg-zinc-700 transition-all flex-shrink-0"
         >
           <Plus size={24} />
