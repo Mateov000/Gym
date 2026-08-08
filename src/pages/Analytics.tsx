@@ -202,7 +202,10 @@ export default function Analytics() {
         
         <div className="flex gap-2 mb-6">
           <input 
-            type="number" step="0.1" value={newWeight} onChange={(e) => setNewWeight(e.target.value)}
+            type="text" 
+            inputMode="decimal" 
+            value={newWeight} 
+            onChange={(e) => setNewWeight(e.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))}
             placeholder="Ej: 75.5" 
             className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500"
           />
