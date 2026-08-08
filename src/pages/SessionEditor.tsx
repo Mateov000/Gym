@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Trash2, Save, Calendar } from 'lucide-react'
 import { fetchSessionById, deleteWorkoutSession, updateWorkoutSet, deleteWorkoutSet, fetchExercises } from '../lib/queries'
-import { useSettingsStore } from '../store/useSettingsStore' // <-- AÑADIDO
+import { useSettingsStore } from '../store/useSettingsStore'
 
 export default function SessionEditor() {
   const { id } = useParams<{ id: string }>()
@@ -93,7 +93,6 @@ export default function SessionEditor() {
                     index={idx} 
                     onUpdate={updateSetMutation.mutate} 
                     onDelete={deleteSetMutation.mutate} 
-                    // ---> AHORA LEE LA UNIDAD GUARDADA INMUTABLE, O USA EL BACKUP LOCAL <---
                     unit={set.unit || exerciseUnits[set.routine_exercise_id || set.exercise_id] || 'kg'}
                   />
                 ))}
@@ -107,28 +106,33 @@ export default function SessionEditor() {
 }
 
 function SetRow({ set, index, onUpdate, onDelete, unit }: any) {
-  const [weight, setWeight] = useState(set.weight)
-  const [reps, setReps] = useState(set.reps)
+  const [weight, setWeight] = useState(set.weight.toString())
+  const [reps, setReps] = useState(set.reps.toString())
   const [isEdited, setIsEdited] = useState(false)
 
   const handleSave = () => {
-    onUpdate({ setId: set.id, weight, reps })
+    onUpdate({ setId: set.id, weight: parseFloat(weight) || 0, reps: parseFloat(reps) || 0 })
     setIsEdited(false)
   }
 
-  const handleWeightChange = (e: any) => { setWeight(Number(e.target.value)); setIsEdited(true) }
-  const handleRepsChange = (e: any) => { setReps(Number(e.target.value)); setIsEdited(true) }
+  const handleWeightChange = (e: any) => { 
+    setWeight(e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')); 
+    setIsEdited(true) 
+  }
+  const handleRepsChange = (e: any) => { 
+    setReps(e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')); 
+    setIsEdited(true) 
+  }
 
   return (
     <div className="flex items-center gap-2 bg-zinc-950 p-2 rounded-xl border border-zinc-800">
       <span className="text-xs text-zinc-500 w-12 font-bold">Set {index + 1}</span>
-      <input type="number" step="any" value={weight} onChange={handleWeightChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
+      <input type="text" inputMode="decimal" value={weight} onChange={handleWeightChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
       
-      {/* ---> SE MUESTRA LA UNIDAD <--- */}
       <span className="text-zinc-500 text-xs truncate max-w-[40px] text-center">{unit}</span>
       
       <span className="text-zinc-700">×</span>
-      <input type="number" step="any" value={reps} onChange={handleRepsChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
+      <input type="text" inputMode="decimal" value={reps} onChange={handleRepsChange} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-center text-sm outline-none focus:border-emerald-500" />
       <span className="text-zinc-500 text-xs flex-1">reps</span>
       
       {isEdited ? (
