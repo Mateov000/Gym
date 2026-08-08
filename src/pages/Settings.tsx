@@ -288,7 +288,14 @@ export default function Settings() {
               {allUnits.map(u => <option key={`from-${u}`} value={u}>{u}</option>)}
             </select>
             <div className="flex items-center text-zinc-500 font-bold">=</div>
-            <input type="number" step="any" value={newEqValue} onChange={(e) => setNewEqValue(e.target.value)} placeholder="0.0" className="w-16 bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-sm text-center outline-none focus:border-emerald-500" />
+            <input 
+              type="text" 
+              inputMode="decimal" 
+              value={newEqValue} 
+              onChange={(e) => setNewEqValue(e.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))} 
+              placeholder="0.0" 
+              className="w-16 bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-sm text-center outline-none focus:border-emerald-500" 
+            />
             <select value={newUnitTo} onChange={(e) => setNewUnitTo(e.target.value)} className="w-[30%] bg-zinc-950 border border-zinc-800 rounded-xl px-1 py-3 text-xs outline-none focus:border-emerald-500 text-center text-zinc-200">
               {allUnits.map(u => <option key={`to-${u}`} value={u}>{u}</option>)}
             </select>
