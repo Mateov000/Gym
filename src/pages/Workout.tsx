@@ -38,17 +38,36 @@ function convertWeight(value: number, fromUnit: string, toUnit: string, equivale
 
 // --- COMPONENTE FILA DE SERIE ---
 function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, currentUnit, useRir }: any) {
-  const [weight, setWeight] = useState(set.weight)
-  const [reps, setReps] = useState(set.reps)
+  // Guardamos como string localmente para permitir comas en mobile
+  const [weightStr, setWeightStr] = useState(set.weight.toString())
+  const [repsStr, setRepsStr] = useState(set.reps.toString())
   const [rir, setRir] = useState(set.rir ?? '')
   const [isEdited, setIsEdited] = useState(false)
   const [setType, setSetType] = useState<'normal' | 'warm_up' | 'drop_set'>(set.set_type || 'normal')
 
-  useEffect(() => { setWeight(set.weight); setReps(set.reps); setRir(set.rir ?? ''); setSetType(set.set_type || 'normal'); setIsEdited(false) }, [set])
+  useEffect(() => { 
+    setWeightStr(set.weight.toString()); 
+    setRepsStr(set.reps.toString()); 
+    setRir(set.rir ?? ''); 
+    setSetType(set.set_type || 'normal'); 
+    setIsEdited(false) 
+  }, [set])
 
-  const handleSave = () => { updateSet(exerciseId, index, { weight, reps, rir: rir !== '' ? Number(rir) : undefined, set_type: setType }); setIsEdited(false) }
+  // ---> Usa la unidad guardada en el set (ej: lb), si no existe, usa la actual.
+  const displayUnit = set.unit || currentUnit;
+
+  const handleSave = () => { 
+    const w = parseFloat(weightStr) || 0;
+    const r = parseFloat(repsStr) || 0;
+    updateSet(exerciseId, index, { weight: w, reps: r, rir: rir !== '' ? Number(rir) : undefined, set_type: setType }); 
+    setIsEdited(false) 
+  }
+  
   const toggleSetType = () => { setSetType(setType === 'normal' ? 'warm_up' : setType === 'warm_up' ? 'drop_set' : 'normal'); setIsEdited(true) }
-  const estimated1RM = (weight > 0 && reps > 1 && setType !== 'warm_up') ? Math.round(weight * (1 + reps / 30)) : weight
+  
+  const wNum = parseFloat(weightStr) || 0;
+  const rNum = parseFloat(repsStr) || 0;
+  const estimated1RM = (wNum > 0 && rNum > 1 && setType !== 'warm_up') ? Math.round(wNum * (1 + rNum / 30)) : wNum
 
   return (
     <div className={`flex flex-col px-3 py-3 rounded-xl text-sm border ${isExtra ? 'bg-blue-500/5 border-blue-500/20' : 'bg-zinc-950 border-zinc-800/50'}`}>
@@ -59,17 +78,33 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
           </button>
         </div>
         <div className="flex items-center gap-1 ml-auto">
-          <input type="number" step="any" value={weight} onChange={(e) => { setWeight(parseFloat(e.target.value) || 0); setIsEdited(true) }} className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" />
-          <span className="text-zinc-500 text-[10px] w-5 truncate text-center">{currentUnit}</span>
+          <input 
+            type="text" 
+            inputMode="decimal" 
+            value={weightStr} 
+            onChange={(e) => { setWeightStr(e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')); setIsEdited(true) }} 
+            className="w-14 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" 
+          />
+          <span className="text-zinc-500 text-[10px] w-5 truncate text-center">{displayUnit}</span>
+          
           <span className="text-zinc-600 text-xs">×</span>
-          <input type="number" step="any" value={reps} onChange={(e) => { setReps(parseFloat(e.target.value) || 0); setIsEdited(true) }} className="w-12 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" />
+          
+          <input 
+            type="text" 
+            inputMode="decimal" 
+            value={repsStr} 
+            onChange={(e) => { setRepsStr(e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')); setIsEdited(true) }} 
+            className="w-12 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none font-bold text-zinc-100 focus:border-emerald-500" 
+          />
           <span className="text-zinc-500 text-[10px]">reps</span>
+          
           {useRir && (
             <>
               <span className="text-zinc-600 text-xs ml-1">RIR</span>
-              <input type="number" step="0.5" value={rir} onChange={(e) => { setRir(e.target.value); setIsEdited(true) }} className="w-10 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none text-zinc-300 focus:border-emerald-500" placeholder="-" />
+              <input type="text" inputMode="decimal" value={rir} onChange={(e) => { setRir(e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')); setIsEdited(true) }} className="w-10 bg-zinc-900 border border-zinc-700 rounded-lg p-1.5 text-center text-sm outline-none text-zinc-300 focus:border-emerald-500" placeholder="-" />
             </>
           )}
+          
           {isEdited ? (
             <button onClick={handleSave} className="ml-2 text-emerald-500 p-2 bg-emerald-500/10 rounded-lg active:scale-95"><Save size={16}/></button>
           ) : (
@@ -79,7 +114,7 @@ function ActiveSetRow({ exerciseId, set, index, updateSet, removeSet, isExtra, c
       </div>
       {setType !== 'warm_up' && estimated1RM > 0 && (
         <div className="text-[10px] text-zinc-500 text-right mt-1.5 pr-2 w-full">
-          1RM Est: <span className="font-bold">~{estimated1RM}{currentUnit}</span>
+          1RM Est: <span className="font-bold">~{estimated1RM}{displayUnit}</span>
         </div>
       )}
     </div>
